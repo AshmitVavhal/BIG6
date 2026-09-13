@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEVICE=cpu
+      - MAX_VRAM_GB=4.0
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev -- --host"
+    depends_on:
+      - backend
+    restart: unless-stopped
