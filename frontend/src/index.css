@@ -15,24 +15,24 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d1117;
+  background: #101010;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: #242424;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: #333333;
 }
 
 /* GIS Grid pattern for canvas backdrop */
 .gis-grid-bg {
-  background-color: #06080c;
+  background-color: #000000;
   background-image: 
-    linear-gradient(rgba(48, 54, 61, 0.25) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(48, 54, 61, 0.25) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 

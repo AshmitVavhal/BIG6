@@ -43,12 +43,12 @@ export const App: React.FC = () => {
   const [showExport, setShowExport] = useState<boolean>(false);
 
   // VQA State
-  const [vqaImage, setVqaImage] = useState<string | null>('sample_geotiff_sac_scene.tif');
+  const [vqaImage, setVqaImage] = useState<string | null>(null);
   const [vqaQuestion, setVqaQuestion] = useState<string>('What is visible in this satellite image?');
   const [vqaResult, setVqaResult] = useState<VQAResponse | null>(null);
 
   // Highlight State
-  const [highlightImage, setHighlightImage] = useState<string | null>('bitemporal_t2_2026.png');
+  const [highlightImage, setHighlightImage] = useState<string | null>(null);
   const [highlightPrompt, setHighlightPrompt] = useState<string>('building');
   const [highlightThreshold, setHighlightThreshold] = useState<number>(0.25);
   const [useMask2Former, setUseMask2Former] = useState<boolean>(true);
@@ -56,14 +56,14 @@ export const App: React.FC = () => {
   const [selectedRegion, setSelectedRegion] = useState<DetectedRegion | null>(null);
 
   // Bi-Temporal State
-  const [t1Image, setT1Image] = useState<string | null>('bitemporal_t1_2024.png');
-  const [t2Image, setT2Image] = useState<string | null>('bitemporal_t2_2026.png');
+  const [t1Image, setT1Image] = useState<string | null>(null);
+  const [t2Image, setT2Image] = useState<string | null>(null);
   const [changeThreshold, setChangeThreshold] = useState<number>(0.40);
   const [changeResult, setChangeResult] = useState<ChangeDetectionResponse | null>(null);
 
   // Optical + SAR State
-  const [opticalImage, setOpticalImage] = useState<string | null>('optical_multispectral.png');
-  const [sarImage, setSarImage] = useState<string | null>('sar_sentinel1.png');
+  const [opticalImage, setOpticalImage] = useState<string | null>(null);
+  const [sarImage, setSarImage] = useState<string | null>(null);
   const [opticalSarQuestion, setOpticalSarQuestion] = useState<string>('Compare optical reflectance and SAR radar backscatter.');
   const [despeckleSar, setDespeckleSar] = useState<boolean>(true);
   const [opticalSarResult, setOpticalSarResult] = useState<OpticalSARResponse | null>(null);

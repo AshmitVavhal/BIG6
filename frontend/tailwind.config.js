@@ -9,23 +9,23 @@ export default {
     extend: {
       colors: {
         sat: {
-          bg: '#090c10',
-          darker: '#06080c',
-          panel: '#0d1117',
-          surface: '#161b22',
-          border: '#30363d',
-          borderLight: '#484f58',
+          bg: '#080808',
+          darker: '#000000',
+          panel: '#101010',
+          surface: '#171717',
+          border: '#242424',
+          borderLight: '#333333',
           accent: '#10b981', // radar green
           accentHover: '#059669',
-          accentDim: 'rgba(16, 185, 129, 0.15)',
+          accentDim: 'rgba(16, 185, 129, 0.12)',
           warning: '#f59e0b',
-          warningDim: 'rgba(245, 158, 11, 0.15)',
+          warningDim: 'rgba(245, 158, 11, 0.12)',
           cyan: '#06b6d4',
-          cyanDim: 'rgba(6, 182, 212, 0.15)',
+          cyanDim: 'rgba(6, 182, 212, 0.12)',
           red: '#ef4444',
-          redDim: 'rgba(239, 68, 68, 0.15)',
-          text: '#e6edf3',
-          muted: '#8b949e',
+          redDim: 'rgba(239, 68, 68, 0.12)',
+          text: '#ededed',
+          muted: '#737373',
         }
       },
       fontFamily: {

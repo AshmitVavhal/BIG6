@@ -119,7 +119,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         {/* Export Report */}
         <button
           onClick={onOpenExport}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-sat-accent hover:bg-sat-accentHover text-sat-darker font-bold rounded text-xs font-mono shadow transition"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded text-xs font-mono shadow transition"
           title="Generate and download intelligence PDF report"
         >
           <FileText className="w-3.5 h-3.5" />
