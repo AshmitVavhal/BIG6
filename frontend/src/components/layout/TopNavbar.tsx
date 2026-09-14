@@ -17,7 +17,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenExport,
   isProcessing
 }) => {
-  const isCuda = systemStatus?.device.toLowerCase() === 'cuda';
+  const isCuda = Boolean(systemStatus && systemStatus.device?.toLowerCase() === 'cuda' && systemStatus.gpu_name);
   const vramUsed = systemStatus?.vram_used_gb ?? 0;
   const vramTotal = systemStatus?.vram_total_gb ?? 0;
   const vramPct = vramTotal > 0 ? Math.round((vramUsed / vramTotal) * 100) : 0;
@@ -53,7 +53,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </span>
           <span className="text-sat-muted">|</span>
           <span className="text-sat-text text-[10px] uppercase font-semibold">
-            {isCuda ? `CUDA GPU [${systemStatus?.gpu_name || 'NVIDIA'}]` : 'CPU MODE'}
+            {systemStatus
+              ? isCuda
+                ? `CUDA GPU [${systemStatus.gpu_name}]`
+                : 'CPU MODE (NO CUDA)'
+              : 'INITIALIZING...'}
           </span>
           <span className="text-sat-muted">|</span>
           <span className="text-[10px] font-semibold flex items-center space-x-1 text-sat-accent">

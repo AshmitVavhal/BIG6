@@ -46,7 +46,7 @@ class ModelManager:
 
     def get_device(self) -> torch.device:
         """Return torch device (cuda if available, else cpu)"""
-        if settings.FORCE_CPU_FALLBACK:
+        if settings.FORCE_CPU_FALLBACK or settings.DEVICE.lower() == "cpu":
             return torch.device("cpu")
         if torch.cuda.is_available():
             return torch.device("cuda:0")
