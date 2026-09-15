@@ -24,3 +24,4 @@ reportlab>=4.2.0
 psutil>=6.0.0
 requests>=2.32.0
 matplotlib>=3.9.0
+google-generativeai>=0.8.0
