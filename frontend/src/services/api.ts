@@ -10,7 +10,8 @@ import type {
   SemanticModelChoice
 } from '../types';
 
-const API_BASE = '/api';
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = BASE_URL ? `${BASE_URL}/api` : '/api';
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {
   const res = await fetch(`${API_BASE}/system/status`);
