@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, BarChart2, Zap, Cpu, HardDrive, RotateCw } from 'lucide-react';
 import { BenchmarkRecord, ModelStatusItem } from '../../types';
 import { fetchBenchmarks, fetchModelsStatus } from '../../services/api';
+import { sanitizeModelText } from '../../utils/sanitize';
 
 interface BenchmarkModalProps {
   isOpen: boolean;
@@ -45,7 +46,7 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
           <div className="flex items-center space-x-2.5">
             <BarChart2 className="w-5 h-5 text-sat-accent" />
             <div>
-              <h2 className="text-sm font-bold text-sat-text tracking-wide">MODEL BENCHMARKS & HARDWARE TELEMETRY</h2>
+              <h2 className="text-sm font-bold text-sat-text tracking-wide">SYSTEM BENCHMARKS & HARDWARE TELEMETRY</h2>
               <span className="text-[11px] text-sat-muted">ISRO SAC-26167 In-Memory Performance Profiler</span>
             </div>
           </div>
@@ -72,20 +73,20 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
           <div>
             <h3 className="text-xs font-bold text-sat-muted mb-2 flex items-center space-x-1.5">
               <Cpu className="w-3.5 h-3.5 text-sat-accent" />
-              <span>ORCHESTRATED MODEL STATUS & VRAM FOOTPRINT</span>
+              <span>ORCHESTRATED ENGINE STATUS & VRAM FOOTPRINT</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {models.map((m) => (
                 <div key={m.key} className="bg-sat-darker p-2.5 rounded border border-sat-border space-y-1 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sat-text">{m.name}</span>
+                    <span className="font-bold text-sat-text">{sanitizeModelText(m.name)}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                       m.loaded ? 'bg-sat-accent/20 text-sat-accent border border-sat-accent/40' : 'bg-sat-surface text-sat-muted'
                     }`}>
                       {m.loaded ? '● LOADED' : '○ IDLE'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-sat-muted font-sans leading-tight">{m.description}</p>
+                  <p className="text-[11px] text-sat-muted font-sans leading-tight">{sanitizeModelText(m.description)}</p>
                   <div className="flex items-center justify-between text-[10px] text-sat-muted pt-1 border-t border-sat-border">
                     <span>DEVICE: <span className="text-sat-text uppercase font-bold">{m.device}</span></span>
                     <span>MEMORY: <span className="text-sat-cyan font-bold">{m.vram_mb} MB</span></span>
@@ -106,7 +107,7 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
                 <table className="w-full text-left text-[11px]">
                   <thead className="bg-sat-panel text-sat-muted text-[10px]">
                     <tr>
-                      <th className="p-2">MODEL</th>
+                      <th className="p-2">ENGINE</th>
                       <th className="p-2">TASK</th>
                       <th className="p-2">AVG LATENCY</th>
                       <th className="p-2">EXECUTIONS</th>
@@ -116,7 +117,7 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
                   <tbody className="divide-y divide-sat-border">
                     {Object.entries(benchmarks.summary).map(([modelName, s]: [string, any]) => (
                       <tr key={modelName} className="hover:bg-sat-surface text-sat-text">
-                        <td className="p-2 font-bold">{modelName}</td>
+                        <td className="p-2 font-bold">{sanitizeModelText(modelName)}</td>
                         <td className="p-2">{s.task}</td>
                         <td className="p-2 text-sat-accent font-bold">{s.avg_ms} ms</td>
                         <td className="p-2">{s.count} runs</td>
@@ -142,7 +143,7 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
                   <thead className="bg-sat-panel text-sat-muted text-[10px] sticky top-0">
                     <tr>
                       <th className="p-1.5">TIMESTAMP</th>
-                      <th className="p-1.5">MODEL</th>
+                      <th className="p-1.5">ENGINE</th>
                       <th className="p-1.5">TASK</th>
                       <th className="p-1.5">LATENCY</th>
                       <th className="p-1.5">SIZE</th>
@@ -152,7 +153,7 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
                     {benchmarks.recent_runs.map((r, i) => (
                       <tr key={i} className="hover:bg-sat-surface text-sat-text">
                         <td className="p-1.5 text-sat-muted">{r.timestamp}</td>
-                        <td className="p-1.5 font-semibold">{r.model}</td>
+                        <td className="p-1.5 font-semibold">{sanitizeModelText(r.model)}</td>
                         <td className="p-1.5">{r.task}</td>
                         <td className="p-1.5 text-sat-accent">{r.inference_time_ms} ms</td>
                         <td className="p-1.5 text-sat-muted">{r.image_size}</td>

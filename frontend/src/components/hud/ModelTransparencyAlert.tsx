@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
+import { sanitizeModelText } from '../../utils/sanitize';
 
 interface ModelTransparencyAlertProps {
   warning?: string | null;
@@ -11,6 +12,8 @@ export const ModelTransparencyAlert: React.FC<ModelTransparencyAlertProps> = ({
   type = 'warning'
 }) => {
   if (!warning) return null;
+
+  const sanitized = sanitizeModelText(warning);
 
   return (
     <div className={`p-3 rounded border text-xs font-mono flex items-start space-x-2.5 ${
@@ -25,9 +28,9 @@ export const ModelTransparencyAlert: React.FC<ModelTransparencyAlertProps> = ({
       )}
       <div className="space-y-0.5">
         <span className="font-bold text-[11px] uppercase tracking-wider block">
-          MODEL TRANSPARENCY & VALIDATION NOTICE
+          TRANSPARENCY & VALIDATION NOTICE
         </span>
-        <p className="text-sat-text text-[11px] leading-relaxed font-sans">{warning}</p>
+        <p className="text-sat-text text-[11px] leading-relaxed font-sans">{sanitized}</p>
       </div>
     </div>
   );

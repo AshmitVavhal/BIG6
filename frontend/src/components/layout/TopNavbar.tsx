@@ -62,14 +62,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <span className="text-sat-muted">|</span>
           <span className="text-[10px] font-semibold flex items-center space-x-1 text-sat-accent">
             <span>●</span>
-            <span>GEOCHAT VLM</span>
+            <span>VLM REASONING</span>
           </span>
           <span className="text-sat-muted">|</span>
           <span className={`text-[10px] font-semibold flex items-center space-x-1 ${
             systemStatus?.gemini_configured ? 'text-sat-cyan' : 'text-sat-muted'
           }`}>
             <span>{systemStatus?.gemini_configured ? '●' : '○'}</span>
-            <span>{systemStatus?.gemini_configured ? 'GEMINI REASONING' : 'GEMINI OFFLINE'}</span>
+            <span>{systemStatus?.gemini_configured ? 'MULTIMODAL REASONING' : 'MULTIMODAL OFFLINE'}</span>
           </span>
         </div>
       </div>

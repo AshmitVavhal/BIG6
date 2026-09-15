@@ -27,13 +27,8 @@ export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({
         {pct}%
       </span>
       <span className="text-sat-muted text-[10px]">
-        ({isModel ? 'Model Raw Score' : 'Heuristic Confidence'})
+        ({isModel ? 'Raw Score' : 'Heuristic Confidence'})
       </span>
-      {modelName && (
-        <span className="text-[10px] text-sat-muted border-l border-sat-border pl-1.5 ml-1">
-          {modelName}
-        </span>
-      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Terminal, ChevronDown, ChevronUp, Clock, Cpu } from 'lucide-react';
 import { ExecutionStage } from '../../types';
+import { sanitizeModelText } from '../../utils/sanitize';
 
 interface ExecutionTraceProps {
   stages: ExecutionStage[];
@@ -44,7 +45,7 @@ export const ExecutionTrace: React.FC<ExecutionTraceProps> = ({ stages, totalTim
               <span className="text-sat-muted font-bold min-w-[55px]">[{stg.timestamp}]</span>
               <div className="flex-1 space-y-0.5">
                 <div className="flex items-center space-x-2">
-                  <span className="text-sat-accent font-bold">{stg.stage}</span>
+                  <span className="text-sat-accent font-bold">{sanitizeModelText(stg.stage)}</span>
                   {stg.duration_ms !== undefined && stg.duration_ms !== null && (
                     <span className="text-[10px] bg-sat-panel px-1.5 py-0.2 rounded border border-sat-border text-sat-muted">
                       +{stg.duration_ms} ms
@@ -56,7 +57,7 @@ export const ExecutionTrace: React.FC<ExecutionTraceProps> = ({ stages, totalTim
                     </span>
                   )}
                 </div>
-                <p className="text-sat-text/90 text-[11px] font-sans">{stg.message}</p>
+                <p className="text-sat-text/90 text-[11px] font-sans">{sanitizeModelText(stg.message)}</p>
               </div>
             </div>
           ))}

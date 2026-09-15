@@ -87,9 +87,9 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
           {/* Model Attribution Header */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-xs">
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
-              <span className="text-[10px] text-sat-muted block">SEMANTIC MODEL:</span>
+              <span className="text-[10px] text-sat-muted block">SEMANTIC ENGINE:</span>
               <span className="text-xs font-bold text-sat-accent truncate block">
-                {vqaResult.semantic_model || vqaResult.model}
+                Remote-Sensing VLM
               </span>
             </div>
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
@@ -157,15 +157,15 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
           <div className="grid grid-cols-3 gap-2 font-mono text-xs">
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">DETECTION ENGINE:</span>
-              <span className="text-xs font-bold text-sat-accent block">{highlightResult.detection_model || 'LAE-DINO'}</span>
+              <span className="text-xs font-bold text-sat-accent block">Zero-Shot Detector</span>
             </div>
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">SEGMENTATION ENGINE:</span>
-              <span className="text-xs font-bold text-sat-cyan block">{highlightResult.segmentation_model || 'Mask2Former'}</span>
+              <span className="text-xs font-bold text-sat-cyan block">Polygon Segmenter</span>
             </div>
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">SEMANTIC EXPLANATION:</span>
-              <span className="text-xs font-bold text-sat-text truncate block">{highlightResult.semantic_model || 'GeoChat'}</span>
+              <span className="text-xs font-bold text-sat-text truncate block">Remote-Sensing VLM</span>
             </div>
           </div>
 
@@ -174,7 +174,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <div className="bg-sat-darker p-2.5 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">DETECTED INSTANCES:</span>
               <span className="text-lg font-bold text-sat-accent">{highlightResult.num_detections}</span>
-              <span className="text-[10px] text-sat-muted block">Objects Segmented (Mask2Former)</span>
+              <span className="text-[10px] text-sat-muted block">Objects Segmented</span>
             </div>
 
             <div className="bg-sat-darker p-2.5 rounded border border-sat-border">
@@ -204,7 +204,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
               <div className="flex items-center justify-between text-[11px] font-mono mb-1">
                 <span className="text-sat-accent font-bold flex items-center space-x-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>SPATIAL DISTRIBUTION & SEMANTIC CONTEXT ({highlightResult.semantic_model}):</span>
+                  <span>SPATIAL DISTRIBUTION & SEMANTIC CONTEXT:</span>
                 </span>
                 <button
                   onClick={() => handleCopy(highlightResult.semantic_summary || '')}
@@ -292,12 +292,12 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
           {/* Model Attribution Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-xs">
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
-              <span className="text-[10px] text-sat-muted block">CHANGE DETECTION MODEL:</span>
-              <span className="text-xs font-bold text-sat-accent block">{changeResult.detection_model || 'ChangeMamba'}</span>
+              <span className="text-[10px] text-sat-muted block">CHANGE DETECTION ENGINE:</span>
+              <span className="text-xs font-bold text-sat-accent block">Bi-Temporal Engine</span>
             </div>
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">SEMANTIC REASONING:</span>
-              <span className="text-xs font-bold text-sat-cyan truncate block">{changeResult.semantic_model}</span>
+              <span className="text-xs font-bold text-sat-cyan truncate block">Remote-Sensing VLM</span>
             </div>
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">LATENCY BREAKDOWN:</span>
@@ -312,7 +312,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <div className="bg-sat-darker p-2.5 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">CALCULATED CHANGE AREA:</span>
               <span className="text-xl font-bold text-sat-warning">{changeResult.change_percentage}%</span>
-              <span className="text-[10px] text-sat-muted block">Authoritative (ChangeMamba)</span>
+              <span className="text-[10px] text-sat-muted block">Authoritative Metric</span>
             </div>
 
             <div className="bg-sat-darker p-2.5 rounded border border-sat-border">
@@ -343,7 +343,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <div className="flex items-center justify-between text-[11px] font-mono">
               <span className="text-sat-accent font-bold flex items-center space-x-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>SEMANTIC CHANGE INTERPRETATION ({changeResult.semantic_model}):</span>
+                <span>SEMANTIC CHANGE INTERPRETATION:</span>
               </span>
               <button
                 onClick={() => handleCopy(changeResult.semantic_analysis)}
@@ -362,7 +362,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
           <div className="p-2.5 bg-sat-surface rounded border border-sat-border flex items-start space-x-2 text-[11px] font-mono text-sat-muted">
             <Info className="w-3.5 h-3.5 text-sat-accent flex-shrink-0 mt-0.5" />
             <span>
-              Semantic interpretation generated by <b>{changeResult.semantic_model}</b>; quantitative change detection and mask performed by <b>ChangeMamba</b>.
+              Semantic interpretation generated by <b>Remote-Sensing VLM</b>; quantitative change detection and mask performed by <b>Change Engine</b>.
             </span>
           </div>
 
@@ -438,7 +438,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             </div>
             <div className="bg-sat-darker p-2 rounded border border-sat-border">
               <span className="text-[10px] text-sat-muted block">SEMANTIC REASONING:</span>
-              <span className="text-xs font-bold text-sat-cyan truncate block">{opticalSarResult.semantic_model || 'GeoChat'}</span>
+              <span className="text-xs font-bold text-sat-cyan truncate block">Remote-Sensing VLM</span>
             </div>
           </div>
 
@@ -478,7 +478,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <div className="flex items-center justify-between text-[11px] font-mono">
               <span className="text-sat-cyan font-bold flex items-center space-x-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>CROSS-MODAL REASONING & FEATURE CORRELATION ({opticalSarResult.semantic_model}):</span>
+                <span>CROSS-MODAL REASONING & FEATURE CORRELATION:</span>
               </span>
               <button
                 onClick={() => handleCopy(opticalSarResult.cross_modal_analysis)}

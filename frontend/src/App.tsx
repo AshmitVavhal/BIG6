@@ -273,7 +273,7 @@ export const App: React.FC = () => {
             {currentMode === 'vqa' && (
               <ImageViewer
                 imageUrl={vqaResult ? vqaResult.image_url : (vqaImage ? `/api/files/view/${vqaImage}` : null)}
-                title={`VQA SATELLITE CANVAS • ${vqaResult?.semantic_model || 'GEOCHAT'}`}
+                title="VQA SATELLITE CANVAS"
               />
             )}
 
@@ -286,7 +286,7 @@ export const App: React.FC = () => {
                 detections={highlightResult?.detections}
                 selectedRegion={selectedRegion}
                 onSelectRegion={setSelectedRegion}
-                title={`IMAGE HIGHLIGHT • LAE-DINO + MASK2FORMER [PROMPT: "${highlightPrompt}"]`}
+                title={`IMAGE HIGHLIGHT • [PROMPT: "${highlightPrompt}"]`}
               />
             )}
 
@@ -301,7 +301,7 @@ export const App: React.FC = () => {
                 }
                 labelA="T1 (PRE-CHANGE BASELINE)"
                 labelB="T2 (POST-CHANGE / OVERLAY)"
-                title="BI-TEMPORAL CHANGEMAMBA COMPARISON SUITE"
+                title="BI-TEMPORAL COMPARISON SUITE"
               />
             )}
 
