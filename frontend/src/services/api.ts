@@ -10,8 +10,31 @@ import type {
   SemanticModelChoice
 } from '../types';
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const API_BASE = BASE_URL ? `${BASE_URL}/api` : '/api';
+export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+export const API_BASE = BASE_URL ? `${BASE_URL}/api` : '/api';
+
+export function resolveImageUrl(urlOrPath: string | null | undefined): string | null {
+  if (!urlOrPath) return null;
+  const trimmed = urlOrPath.trim();
+  if (!trimmed) return null;
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/api/')) {
+    return BASE_URL ? `${BASE_URL}${trimmed}` : trimmed;
+  }
+  if (trimmed.startsWith('/')) {
+    return BASE_URL ? `${BASE_URL}${trimmed}` : trimmed;
+  }
+  return BASE_URL
+    ? `${BASE_URL}/api/files/view/${encodeURIComponent(trimmed)}`
+    : `/api/files/view/${encodeURIComponent(trimmed)}`;
+}
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {
   const res = await fetch(`${API_BASE}/system/status`);

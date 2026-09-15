@@ -27,7 +27,8 @@ import {
   analyzeHighlight,
   analyzeChange,
   analyzeOpticalSAR,
-  clearSystemCache
+  clearSystemCache,
+  resolveImageUrl
 } from './services/api';
 
 export const App: React.FC = () => {
@@ -272,7 +273,7 @@ export const App: React.FC = () => {
             {/* 1. VQA Viewport */}
             {currentMode === 'vqa' && (
               <ImageViewer
-                imageUrl={vqaResult ? vqaResult.image_url : (vqaImage ? `/api/files/view/${vqaImage}` : null)}
+                imageUrl={resolveImageUrl(vqaResult?.image_url || vqaImage)}
                 title="VQA SATELLITE CANVAS"
               />
             )}
@@ -280,9 +281,9 @@ export const App: React.FC = () => {
             {/* 2. Highlight Viewport */}
             {currentMode === 'highlight' && (
               <ImageViewer
-                imageUrl={highlightResult ? highlightResult.original_image_url : (highlightImage ? `/api/files/view/${highlightImage}` : null)}
-                annotatedImageUrl={highlightResult?.annotated_image_url}
-                maskImageUrl={highlightResult?.mask_image_url}
+                imageUrl={resolveImageUrl(highlightResult?.original_image_url || highlightImage)}
+                annotatedImageUrl={resolveImageUrl(highlightResult?.annotated_image_url)}
+                maskImageUrl={resolveImageUrl(highlightResult?.mask_image_url)}
                 detections={highlightResult?.detections}
                 selectedRegion={selectedRegion}
                 onSelectRegion={setSelectedRegion}
@@ -293,12 +294,12 @@ export const App: React.FC = () => {
             {/* 3. Bi-Temporal Change Viewport */}
             {currentMode === 'bitemporal' && (
               <ComparisonViewer
-                imageAUrl={changeResult ? changeResult.t1_image_url : (t1Image ? `/api/files/view/${t1Image}` : null)}
-                imageBUrl={
+                imageAUrl={resolveImageUrl(changeResult?.t1_image_url || t1Image)}
+                imageBUrl={resolveImageUrl(
                   changeResult
-                    ? changeResult.overlay_url
-                    : (t2Image ? `/api/files/view/${t2Image}` : null)
-                }
+                    ? (changeResult.overlay_url || changeResult.t2_image_url)
+                    : t2Image
+                )}
                 labelA="T1 (PRE-CHANGE BASELINE)"
                 labelB="T2 (POST-CHANGE / OVERLAY)"
                 title="BI-TEMPORAL COMPARISON SUITE"
@@ -308,12 +309,12 @@ export const App: React.FC = () => {
             {/* 4. Optical + SAR Fusion Viewport */}
             {currentMode === 'optical_sar' && (
               <ComparisonViewer
-                imageAUrl={opticalSarResult ? opticalSarResult.optical_image_url : (opticalImage ? `/api/files/view/${opticalImage}` : null)}
-                imageBUrl={
+                imageAUrl={resolveImageUrl(opticalSarResult?.optical_image_url || opticalImage)}
+                imageBUrl={resolveImageUrl(
                   opticalSarResult
-                    ? opticalSarResult.fused_image_url
-                    : (sarImage ? `/api/files/view/${sarImage}` : null)
-                }
+                    ? (opticalSarResult.fused_image_url || opticalSarResult.sar_image_url)
+                    : sarImage
+                )}
                 labelA="OPTICAL RGB REFLECTANCE"
                 labelB="SAR / RADAR FUSED COMPOSITE"
                 title="OPTICAL + SAR CROSS-MODAL FUSION WORKSPACE"

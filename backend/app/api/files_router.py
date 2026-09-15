@@ -55,10 +55,13 @@ async def list_sample_datasets():
                 })
     return {"samples": samples}
 
-@router.get("/view/{filename}")
+from urllib.parse import unquote
+
+@router.get("/view/{filename:path}")
 async def view_image(filename: str):
     try:
-        path = file_manager.resolve_image_path(filename)
+        clean_name = unquote(filename)
+        path = file_manager.resolve_image_path(clean_name)
         ext = path.suffix.lower()
 
         # Web browsers cannot render TIFF/GeoTIFF natively.
@@ -69,7 +72,11 @@ async def view_image(filename: str):
                 logger.info(f"Generating web PNG preview for GeoTIFF: {path.name}")
                 arr, _ = raster_reader.load_rgb_array(path)
                 raster_reader.save_rgb_preview(arr, cached_preview)
-            return FileResponse(cached_preview, media_type="image/png")
+            return FileResponse(
+                cached_preview,
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=3600"}
+            )
 
         media_type = "image/png"
         if ext in [".jpg", ".jpeg"]:
@@ -77,17 +84,26 @@ async def view_image(filename: str):
         elif ext == ".png":
             media_type = "image/png"
             
-        return FileResponse(path, media_type=media_type)
+        return FileResponse(
+            path,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Image '{filename}' not found.")
     except Exception as e:
         logger.error(f"Error serving image view '{filename}': {e}")
         raise HTTPException(status_code=500, detail=f"Error rendering image: {str(e)}")
 
-@router.get("/download/{filename}")
+@router.get("/download/{filename:path}")
 async def download_file(filename: str):
     try:
-        path = file_manager.resolve_image_path(filename)
-        return FileResponse(path, filename=filename, media_type="application/octet-stream")
+        clean_name = unquote(filename)
+        path = file_manager.resolve_image_path(clean_name)
+        return FileResponse(
+            path,
+            filename=path.name,
+            media_type="application/octet-stream"
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File '{filename}' not found.")

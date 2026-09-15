@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, FileText, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { exportReport } from '../../services/api';
+import { exportReport, resolveImageUrl } from '../../services/api';
 import { WorkspaceMode } from '../../types';
 
 interface ExportReportModalProps {
@@ -97,8 +97,10 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                 Filename: <span className="font-mono text-sat-accent">{reportFileName}</span>
               </p>
               <a
-                href={downloadUrl}
+                href={resolveImageUrl(downloadUrl) || downloadUrl}
                 download
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-full py-2 px-3 bg-sat-accent hover:bg-sat-accentHover text-sat-darker font-bold rounded flex items-center justify-center space-x-2 transition"
               >
                 <Download className="w-4 h-4" />
