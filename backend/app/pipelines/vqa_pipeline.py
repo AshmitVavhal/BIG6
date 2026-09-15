@@ -134,10 +134,10 @@ class VQAPipeline:
             memory_mb=vram_mb if vram_mb > 0 else None
         ))
 
-        # 5. Optional LAE-DINO detection
+        # 5. Optional LAE-DINO detection (on CUDA/GPU instances)
         lae_detections: Optional[List[Any]] = None
         target_object = self._should_trigger_lae_dino(request.question)
-        if target_object:
+        if target_object and self.model_manager.get_device_name() == "cuda":
             t0 = time.time()
             try:
                 lae_model = self.model_manager.get_lae_dino()
@@ -164,9 +164,9 @@ class VQAPipeline:
             except Exception as e:
                 logger.warning(f"LAE-DINO optional detection pass skipped: {e}")
 
-        # 6. Optional Mask2Former segmentation
+        # 6. Optional Mask2Former segmentation (on CUDA/GPU instances)
         m2f_segmentation: Optional[Dict[str, Any]] = None
-        if self._should_trigger_mask2former(request.question):
+        if self._should_trigger_mask2former(request.question) and self.model_manager.get_device_name() == "cuda":
             t0 = time.time()
             try:
                 m2f_model = self.model_manager.get_mask2former()

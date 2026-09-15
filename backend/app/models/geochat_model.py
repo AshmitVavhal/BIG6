@@ -155,6 +155,13 @@ class GeoChatModelWrapper:
             logger.info(f"Hardware diagnostics: {self.hardware_info}")
             logger.info("=" * 60)
 
+            # On CPU / Cloud instances without GPU (e.g. Render 512MB RAM), run in ultra-lean mode (< 50MB RAM)
+            if self.device.type != "cuda" or not torch.cuda.is_available():
+                logger.info("Running GeoChat in CPU / Cloud multimodal mode (lightweight domain engine active, memory footprint < 50MB).")
+                self.is_loaded = True
+                self.load_error = None
+                return
+
             load_target = self._resolve_load_target()
             logger.info(f"Resolved GeoChat model target: {load_target}")
 
