@@ -5,7 +5,6 @@ Provides clean interface for GeoChat remote-sensing VLM operations.
 
 from typing import Dict, Any, Tuple, Optional, List
 import numpy as np
-import torch
 from app.config import settings
 from app.models.model_manager import model_manager
 from app.utils.logger import logger

@@ -1,12 +1,22 @@
 import gc
 import os
 import psutil
-import torch
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from app.config import settings
 from app.schemas.system import SystemStatusResponse, ModelsStatusResponse, ModelStatusItem
 from app.utils.logger import logger
+
+
+def _is_cuda_available() -> bool:
+    """Check if CUDA is available without failing if torch is not yet imported."""
+    if settings.FORCE_CPU_FALLBACK or settings.DEVICE.lower() == "cpu":
+        return False
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
 
 
 class ModelManager:
@@ -44,17 +54,23 @@ class ModelManager:
             }
         return cls._instance
 
-    def get_device(self) -> torch.device:
-        """Return torch device (cuda if available, else cpu)"""
+    def get_device(self) -> Any:
+        """Return device string or torch device (cuda if available, else cpu)"""
         if settings.FORCE_CPU_FALLBACK or settings.DEVICE.lower() == "cpu":
-            return torch.device("cpu")
-        if torch.cuda.is_available():
-            return torch.device("cuda:0")
-        return torch.device("cpu")
+            return "cpu"
+        if _is_cuda_available():
+            try:
+                import torch
+                return torch.device("cuda:0")
+            except Exception:
+                return "cpu"
+        return "cpu"
 
     def get_device_name(self) -> str:
         dev = self.get_device()
-        return "cuda" if dev.type == "cuda" else "cpu"
+        if isinstance(dev, str):
+            return dev
+        return "cuda" if getattr(dev, "type", "cpu") == "cuda" else "cpu"
 
     def get_system_status(self) -> SystemStatusResponse:
         device_type = self.get_device_name()
@@ -63,8 +79,9 @@ class ModelManager:
         vram_used = None
         vram_free = None
 
-        if device_type == "cuda" and torch.cuda.is_available():
+        if device_type == "cuda" and _is_cuda_available():
             try:
+                import torch
                 gpu_name = torch.cuda.get_device_name(0)
                 total_bytes = torch.cuda.get_device_properties(0).total_memory
                 reserved_bytes = torch.cuda.memory_reserved(0)
@@ -131,7 +148,7 @@ class ModelManager:
         return ModelsStatusResponse(
             models=items,
             system_device=self.get_device_name(),
-            cuda_available=torch.cuda.is_available()
+            cuda_available=_is_cuda_available()
         )
 
     def unload_model(self, model_key: str):
@@ -147,8 +164,12 @@ class ModelManager:
     def clear_vram_cache(self):
         """Run GC and empty PyTorch CUDA cache"""
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if _is_cuda_available():
+            try:
+                import torch
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
 
     def get_geochat(self):
         from app.models.geochat_model import GeoChatModelWrapper
