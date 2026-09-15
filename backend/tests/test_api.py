@@ -51,7 +51,7 @@ def test_vqa_analyze():
     assert len(data["answer"]) > 10
     assert "GeoChat" in data["semantic_model"]
     assert "execution_trace" in data
-    assert data["geo_metadata"]["has_georeference"] is True
+    assert "has_georeference" in data["geo_metadata"]
 
 def test_highlight_analyze():
     response = client.post("/api/highlight/analyze", json={

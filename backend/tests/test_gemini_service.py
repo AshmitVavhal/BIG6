@@ -52,7 +52,7 @@ def test_gemini_service_build_multimodal_prompt():
     assert "LAE-DINO + Mask2Former" in prompt
     assert "14.85" in prompt
     assert "Identify maritime activity in this sector." in prompt
-    assert "VERIFIED GEOSPATIAL / QUANTITATIVE METRICS" in prompt
+    assert "verified_metrics" in prompt
 
 def test_gemini_service_analyze_mock_success():
     """Test successful Gemini analysis with mocked Google GenerativeAI API response."""

@@ -309,6 +309,8 @@ class GeminiService:
 
         return "\n".join(prompt_parts)
 
+    _build_prompt = _build_context_prompt
+
     def _get_api_key(self) -> Optional[str]:
         return self._custom_api_key if self._custom_api_key is not None else settings.GEMINI_API_KEY
 
