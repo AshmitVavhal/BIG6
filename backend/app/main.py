@@ -34,13 +34,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration for Vite Frontend
+# CORS configuration for Vite Frontend & Vercel Deployments
+configured_origins = list(settings.CORS_ORIGINS)
+if "https://satquery-zeta.vercel.app" not in configured_origins:
+    configured_origins.append("https://satquery-zeta.vercel.app")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=configured_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
 
 # Mount Routers under /api prefix

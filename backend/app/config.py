@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     # Max file upload size: 100MB
     MAX_UPLOAD_SIZE_BYTES: int = 100 * 1024 * 1024
     ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".geotiff"]
+    
+    # CORS Configuration
+    CORS_ORIGINS: list[str] = [
+        "https://satquery-zeta.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ]
 
     model_config = SettingsConfigDict(
         env_file=[str(BACKEND_DIR / ".env"), str(BASE_DIR / ".env"), ".env", "../.env"],
