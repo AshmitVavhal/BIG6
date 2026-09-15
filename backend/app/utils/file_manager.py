@@ -68,6 +68,27 @@ class FileManager:
         if sample_candidate.exists():
             return sample_candidate
 
+        # Common sample aliases mapping
+        sample_aliases = {
+            "bitemporal_t1_2024.png": "Bi_Temporal T1.png",
+            "bitemporal_t1.png": "Bi_Temporal T1.png",
+            "bitemporal_t1": "Bi_Temporal T1.png",
+            "bitemporal_t2_2026.png": "Bi_Temporal T2.png",
+            "bitemporal_t2.png": "Bi_Temporal T2.png",
+            "bitemporal_t2": "Bi_Temporal T2.png",
+            "optical_multispectral.png": "optical.png",
+            "optical_multispectral": "optical.png",
+            "sar_sentinel1.png": "sar.png",
+            "sar_sentinel1": "sar.png",
+            "sample_geotiff_sac_scene.tif": "VQA1.png"
+        }
+        clean_key = path_or_name.lower().strip()
+        for alias, real_file in sample_aliases.items():
+            if clean_key == alias.lower() or clean_key == alias.lower().replace(".png", ""):
+                real_cand = settings.SAMPLES_PATH / real_file
+                if real_cand.exists():
+                    return real_cand
+
         # Check by basename in samples
         basename = p.name
         if (settings.SAMPLES_PATH / basename).exists():

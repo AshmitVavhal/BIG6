@@ -440,6 +440,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Upload className="w-3.5 h-3.5 text-sat-accent" />
                 <span>{t1Image ? t1Image.split('_').slice(-1)[0] : 'Upload T1 (Before)'}</span>
               </button>
+
+              {/* Sample Selector for T1 */}
+              {samples.length > 0 && (
+                <div className="mt-1">
+                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {samples.map((s) => (
+                      <button
+                        key={s.filename}
+                        onClick={() => onSelectT1Image(s.filename)}
+                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
+                          t1Image === s.filename
+                            ? 'bg-sat-accent/20 border-sat-accent text-sat-accent'
+                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
+                        }`}
+                      >
+                        {s.filename.replace('.png', '').replace('.tif', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* T2 After Upload */}
@@ -455,6 +477,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Upload className="w-3.5 h-3.5 text-sat-accent" />
                 <span>{t2Image ? t2Image.split('_').slice(-1)[0] : 'Upload T2 (After)'}</span>
               </button>
+
+              {/* Sample Selector for T2 */}
+              {samples.length > 0 && (
+                <div className="mt-1">
+                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {samples.map((s) => (
+                      <button
+                        key={s.filename}
+                        onClick={() => onSelectT2Image(s.filename)}
+                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
+                          t2Image === s.filename
+                            ? 'bg-sat-accent/20 border-sat-accent text-sat-accent'
+                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
+                        }`}
+                      >
+                        {s.filename.replace('.png', '').replace('.tif', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Quick 1-Click Bi-Temporal Pair loader */}
@@ -462,12 +506,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[10px] font-mono text-sat-muted block">PRESET BI-TEMPORAL SCENES:</span>
               <button
                 onClick={() => {
-                  onSelectT1Image('bitemporal_t1_2024.png');
-                  onSelectT2Image('bitemporal_t2_2026.png');
+                  onSelectT1Image('Bi_Temporal T1.png');
+                  onSelectT2Image('Bi_Temporal T2.png');
                 }}
                 className="w-full text-left text-xs font-mono p-2 rounded bg-sat-surface hover:bg-sat-surface/80 border border-sat-border text-sat-text transition flex items-center justify-between"
               >
-                <span>Urban Expansion (2024 vs 2026)</span>
+                <span>Urban Expansion (T1 vs T2)</span>
                 <span className="text-sat-accent text-[10px] font-bold">LOAD PAIR</span>
               </button>
             </div>
@@ -523,6 +567,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Upload className="w-3.5 h-3.5 text-sat-cyan" />
                 <span>{opticalImage ? opticalImage.split('_').slice(-1)[0] : 'Upload Optical RGB'}</span>
               </button>
+
+              {/* Sample Selector for Optical */}
+              {samples.length > 0 && (
+                <div className="mt-1">
+                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {samples.map((s) => (
+                      <button
+                        key={s.filename}
+                        onClick={() => onSelectOpticalImage(s.filename)}
+                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
+                          opticalImage === s.filename
+                            ? 'bg-sat-cyan/20 border-sat-cyan text-sat-cyan'
+                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
+                        }`}
+                      >
+                        {s.filename.replace('.png', '').replace('.tif', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* SAR Upload */}
@@ -538,6 +604,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Upload className="w-3.5 h-3.5 text-sat-warning" />
                 <span>{sarImage ? sarImage.split('_').slice(-1)[0] : 'Upload SAR Image'}</span>
               </button>
+
+              {/* Sample Selector for SAR */}
+              {samples.length > 0 && (
+                <div className="mt-1">
+                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {samples.map((s) => (
+                      <button
+                        key={s.filename}
+                        onClick={() => onSelectSarImage(s.filename)}
+                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
+                          sarImage === s.filename
+                            ? 'bg-sat-warning/20 border-sat-warning text-sat-warning'
+                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
+                        }`}
+                      >
+                        {s.filename.replace('.png', '').replace('.tif', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Quick 1-Click Optical+SAR Pair loader */}
@@ -545,8 +633,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[10px] font-mono text-sat-muted block">PRESET MULTIMODAL PAIR:</span>
               <button
                 onClick={() => {
-                  onSelectOpticalImage('optical_multispectral.png');
-                  onSelectSarImage('sar_sentinel1.png');
+                  onSelectOpticalImage('optical.png');
+                  onSelectSarImage('sar.png');
                 }}
                 className="w-full text-left text-xs font-mono p-2 rounded bg-sat-surface hover:bg-sat-surface/80 border border-sat-border text-sat-text transition flex items-center justify-between"
               >

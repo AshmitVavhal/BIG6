@@ -45,13 +45,16 @@ class Settings(BaseSettings):
 
     # Google Gemini API Configuration (Backend only, never expose to frontend)
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY", None)
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
     # Max file upload size: 100MB
     MAX_UPLOAD_SIZE_BYTES: int = 100 * 1024 * 1024
     ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".geotiff"]
 
-    model_config = SettingsConfigDict(env_file=[".env", "../.env"], extra="allow")
+    model_config = SettingsConfigDict(
+        env_file=[str(BACKEND_DIR / ".env"), str(BASE_DIR / ".env"), ".env", "../.env"],
+        extra="allow"
+    )
 
 settings = Settings()
 

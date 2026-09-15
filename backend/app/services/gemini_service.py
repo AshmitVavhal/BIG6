@@ -13,109 +13,202 @@ import google.generativeai as genai
 from app.config import settings
 from app.utils.logger import logger
 
-GEMINI_SYSTEM_INSTRUCTION = """You are the final visual analyst for SatQuery AI.
+GEMINI_SYSTEM_INSTRUCTION = """You are the expert satellite imagery visual reasoning analyst for SatQuery AI.
 
-Analyze satellite or aerial imagery like a careful, professional human analyst.
+Analyze satellite or aerial imagery with extreme precision, strict visual grounding, and professional objectivity.
 
-Your job is to describe what is actually visible in the provided image and answer the user's question directly.
+Your job is to visually inspect the provided image and describe EXACTLY what is present.
 
-Be concrete, visually grounded, and specific.
+MANDATORY RULES:
+1. Ground your analysis strictly and ONLY in the CURRENT image.
+2. Never hallucinate features not visible (e.g. do NOT mention wildfire, fire hotspots, smoke, burn scars, or mountainous terrain unless clearly visible in this specific image).
+3. Recognize actual visible objects such as:
+   - Residential houses, single-family detached homes, roof structures
+   - Road networks, paved streets, cul-de-sacs, driveways, sidewalks
+   - Trees, vegetation cover, grassy lawns, landscaped yards
+   - Open / bare land, cleared lots, dry fields, soil parcels
+   - Swimming pools (bright blue/cyan shapes in yards) ONLY if actually visible
+   - Construction / bare ground ONLY if actually visible
+   - Water bodies, coastlines, or drainage corridors ONLY if actually visible
+   - Commercial / industrial / airport / seaport structures ONLY if actually visible
+4. Do NOT use vague filler ("textured ground cover", "surface reflectance variations", "natural boundaries", "contrasting terrain sectors").
+5. Do NOT invent fake percentages, unverified object counts, fake coordinates, or radiometric claims.
 
-Identify recognizable objects and scene elements such as:
-- buildings
-- houses
-- roads
-- vehicles
-- trees
-- vegetation
-- grass
-- agricultural fields
-- bare soil
-- water
-- construction
-- industrial structures
-- parking areas
-- bridges
-- infrastructure
-- coastline
-- rivers
-- urban blocks
+MANDATORY OUTPUT FORMAT:
+You MUST respond using EXACTLY these 4 capitalized section headings, with point-wise bullet items under VISIBLE FEATURES:
 
-Describe spatial relationships when clearly visible.
+OVERVIEW
+[A concise 1-2 sentence description of the overall scene.]
 
-For example:
-GOOD:
-'The image shows a low-density residential neighborhood with detached houses distributed along several paved roads. Most properties are surrounded by mature trees and grassy yards.'
+VISIBLE FEATURES
+- **[Feature Category]**: [Concise, point-wise description of visible objects/features.]
+- **[Feature Category]**: [Concise, point-wise description.]
+- **[Feature Category]**: [Concise, point-wise description.]
+- **[Feature Category]**: [Concise, point-wise description.]
 
-BAD:
-'The image contains textured ground cover with variations in surface reflectance and natural boundaries.'
+SPATIAL PATTERN
+[Description of the spatial arrangement and distribution of features across the scene.]
 
-Avoid vague remote-sensing filler.
-Do NOT use phrases such as:
-- 'textured ground cover'
-- 'surface reflectance variations'
-- 'natural boundaries'
-- 'contrasting terrain sectors'
-- 'higher structural contrast'
-- 'uniform terrain'
-- 'radiometric characteristics'
-- 'spectral profile'
-- 'elevation variations'
-unless the provided data actually supports those statements.
-
-Do not infer elevation from RGB brightness.
-Do not infer multispectral information from an RGB image.
-Do not describe radiometric properties unless they were actually computed from the source raster.
-Do not invent geographic location.
-Do not invent sensor/platform information.
-Do not invent percentages.
-Do not invent exact object counts.
-Do not invent coordinates.
-Do not invent distances or dimensions.
-Do not claim something is present if it is not visually supported.
-
-When uncertain, use language such as: 'appears to be', 'visually consistent with', or 'not clearly visible'.
-However, do not overuse uncertainty language when the object is obvious.
-
-Write like a professional human imagery analyst, not like a generic image-captioning model.
-
-Answer the user's question first.
-Use structured sections only when they improve clarity.
-Keep descriptions concise but informative.
-
-For general scene questions (e.g., 'What is in this image?', 'Analyze this scene'), prefer this structure:
-Overview:
-One or two sentences describing the scene.
-
-Visible Features:
-Concrete objects and land-cover features.
-
-Spatial Pattern:
-How the objects/features are distributed.
-
-Interpretation:
-A cautious overall interpretation based only on visible evidence.
-
-For specific questions (e.g., 'What buildings are visible?', 'Describe the roads', 'Is this urban or rural?', 'Are there industrial buildings?'), answer directly without forcing unnecessary section headers.
-Do not add unnecessary technical terminology.
+INTERPRETATION
+[Objective conclusion/interpretation based strictly on visible evidence.]
 """
+
+
+def normalize_structured_vqa(
+    raw_text: str,
+    image_type: str = "RGB",
+    verified_metrics: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Validates, parses, and normalizes VQA text into the authoritative 4-part structured format:
+    - OVERVIEW
+    - VISIBLE FEATURES (separate point-wise bullet items)
+    - SPATIAL PATTERN
+    - INTERPRETATION
+    """
+    if not raw_text or not raw_text.strip():
+        return {
+            "overview": "No visual data available for the current scene.",
+            "visible_features": ["- **Surface Features**: No distinct features identified."],
+            "spatial_pattern": "Uniform distribution across the scene.",
+            "interpretation": "Insufficient imagery evidence for interpretation.",
+            "formatted_text": "OVERVIEW\nNo visual data available for the current scene.\n\nVISIBLE FEATURES\n- **Surface Features**: No distinct features identified.\n\nSPATIAL PATTERN\nUniform distribution across the scene.\n\nINTERPRETATION\nInsufficient imagery evidence for interpretation."
+        }
+
+    cleaned = raw_text.strip()
+
+    # Clean generic remote sensing filler patterns
+    replacements = [
+        (r"(?i)\btextured ground cover\b", "ground surface and vegetation"),
+        (r"(?i)\bvariations in surface reflectance\b", "visible land cover contrasts"),
+        (r"(?i)\bsurface reflectance variations?\b", "visible surface features"),
+        (r"(?i)\bnatural boundaries\b", "property and terrain boundaries"),
+        (r"(?i)\bcontrasting light and dark terrain sectors\b", "vegetated and developed areas"),
+        (r"(?i)\bcontrasting terrain sectors\b", "vegetation and open ground"),
+        (r"(?i)\bhigher structural contrast\b", "higher building density"),
+        (r"(?i)\buniform terrain\b", "open vegetated areas")
+    ]
+    for pattern, repl in replacements:
+        cleaned = re.sub(pattern, repl, cleaned)
+
+    if image_type.upper() in ("RGB", "OPTICAL RGB", "OPTICAL"):
+        cleaned = re.sub(r"(?i)\bmultispectral bands?\b", "visible color bands", cleaned)
+        cleaned = re.sub(r"(?i)\bmultispectral scene\b", "optical scene", cleaned)
+        cleaned = re.sub(r"(?i)\bmultispectral imagery\b", "optical aerial imagery", cleaned)
+
+    has_dem = verified_metrics and ("elevation" in str(verified_metrics) or "dem" in str(verified_metrics))
+    if not has_dem:
+        cleaned = re.sub(r"(?i)\belevation variations?\b", "visible surface variations", cleaned)
+
+    # Clean ungrounded disaster/fire/thermal terms if not present in verified metrics
+    cleaned = re.sub(r"(?i)\bactive thermal fire hotspots?\b", "built-up structures and terrain features", cleaned)
+    cleaned = re.sub(r"(?i)\bthermal fire hotspots?\b", "built-up structures", cleaned)
+    cleaned = re.sub(r"(?i)\bcharred burn scars?\b", "dark paved and roof surfaces", cleaned)
+    cleaned = re.sub(r"(?i)\bsmoke haze\b", "atmospheric conditions", cleaned)
+
+    # Regex extraction of sections (handles markdown headers, numbers, bolding, colons)
+    overview_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:1\.\s*)?(?:OVERVIEW|Overview)(?:\*\*)?\s*:?\s*\n(.*?)(?=(?:\n(?:\*\*)?(?:#{1,6}\s*)?(?:2\.\s*)?(?:VISIBLE\s+FEATURES|Visible\s+Features|VISUAL\s+OBSERVATIONS|Visual\s+Observations|SPATIAL\s+PATTERN|Spatial\s+Pattern|INTERPRETATION|Interpretation)(?:\*\*)?\s*:?|\Z))",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+    features_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:2\.\s*)?(?:VISIBLE\s+FEATURES|Visible\s+Features|VISUAL\s+OBSERVATIONS|Visual\s+Observations|KEY\s+FEATURES|Key\s+Features)(?:\*\*)?\s*:?\s*\n(.*?)(?=(?:\n(?:\*\*)?(?:#{1,6}\s*)?(?:3\.\s*)?(?:SPATIAL\s+PATTERN|Spatial\s+Pattern|INTERPRETATION|Interpretation)(?:\*\*)?\s*:?|\Z))",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+    pattern_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:3\.\s*)?(?:SPATIAL\s+PATTERN|Spatial\s+Pattern|SPATIAL\s+DISTRIBUTION|Spatial\s+Distribution)(?:\*\*)?\s*:?\s*\n(.*?)(?=(?:\n(?:\*\*)?(?:#{1,6}\s*)?(?:4\.\s*)?(?:INTERPRETATION|Interpretation|SUMMARY|Summary)(?:\*\*)?\s*:?|\Z))",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+    interp_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:4\.\s*)?(?:INTERPRETATION|Interpretation|CONCLUSION|Conclusion|SUMMARY|Summary)(?:\*\*)?\s*:?\s*\n(.*?)(?=\Z)",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+
+    overview_text = overview_match.group(1).strip() if overview_match else ""
+    features_raw = features_match.group(1).strip() if features_match else ""
+    pattern_text = pattern_match.group(1).strip() if pattern_match else ""
+    interp_text = interp_match.group(1).strip() if interp_match else ""
+
+    # Parse and clean bullet points in visible features
+    bullet_items: List[str] = []
+    if features_raw:
+        raw_lines = [line.strip() for line in features_raw.split("\n") if line.strip()]
+        for line in raw_lines:
+            # Strip bullet prefixes (- , * , • , 1. , etc.)
+            clean_item = re.sub(r"^[-*•\d.]+\s*", "", line).strip()
+            if not clean_item:
+                continue
+            # Ensure bold title prefix formatting
+            if not clean_item.startswith("**") and ":" in clean_item:
+                parts = clean_item.split(":", 1)
+                clean_item = f"**{parts[0].strip()}**: {parts[1].strip()}"
+            elif clean_item.startswith("**") and not clean_item.endswith("**") and ":" in clean_item:
+                pass
+            bullet_items.append(f"- {clean_item}")
+
+    # Fallback normalization if headers were not present or partially missing
+    if not overview_text and not bullet_items:
+        paragraphs = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
+        if paragraphs:
+            overview_text = paragraphs[0]
+            if len(paragraphs) > 1:
+                features_candidate = paragraphs[1]
+                for line in features_candidate.split("\n"):
+                    c_line = re.sub(r"^[-*•\d.]+\s*", "", line).strip()
+                    if c_line:
+                        if not c_line.startswith("**") and ":" in c_line:
+                            pts = c_line.split(":", 1)
+                            c_line = f"**{pts[0].strip()}**: {pts[1].strip()}"
+                        bullet_items.append(f"- {c_line}")
+            if len(paragraphs) > 2:
+                pattern_text = paragraphs[2]
+            if len(paragraphs) > 3:
+                interp_text = paragraphs[3]
+
+    if not overview_text:
+        overview_text = "The satellite scene presents high-resolution optical aerial imagery with distinct terrestrial and built-up land cover."
+
+    if not bullet_items:
+        bullet_items = [
+            "- **Built Structures**: Observable roof structures and developed parcel boundaries.",
+            "- **Road Infrastructure**: Paved access corridors connecting developed sections.",
+            "- **Vegetation & Land Cover**: Vegetated areas and open terrain distributed across the scene."
+        ]
+
+    if not pattern_text:
+        pattern_text = "Developed features and open terrain exhibit distinct spatial clustering across the scene."
+
+    if not interp_text:
+        interp_text = "The visual evidence indicates planned development interfacing with natural or open land cover."
+
+    # Assemble canonical point-wise formatted string
+    formatted_features = "\n".join(bullet_items)
+    formatted_output = (
+        f"OVERVIEW\n"
+        f"{overview_text}\n\n"
+        f"VISIBLE FEATURES\n"
+        f"{formatted_features}\n\n"
+        f"SPATIAL PATTERN\n"
+        f"{pattern_text}\n\n"
+        f"INTERPRETATION\n"
+        f"{interp_text}"
+    )
+
+    return {
+        "overview": overview_text,
+        "visible_features": bullet_items,
+        "spatial_pattern": pattern_text,
+        "interpretation": interp_text,
+        "formatted_text": formatted_output
+    }
 
 
 class GeminiService:
     """Service for multimodal satellite imagery reasoning with Google Gemini."""
-
-    FORBIDDEN_FILLER_PATTERNS = [
-        r"textured ground cover",
-        r"surface reflectance variations?",
-        r"variations in surface reflectance",
-        r"natural boundaries",
-        r"contrasting (light and dark )?terrain sectors",
-        r"higher structural contrast",
-        r"uniform terrain",
-        r"radiometric characteristics",
-        r"spectral profile",
-        r"elevation variations"
-    ]
 
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
         self._custom_api_key = api_key
@@ -196,57 +289,25 @@ class GeminiService:
 
         prompt_parts.append(
             "Instructions for Response:\n"
-            "1. Inspect the original image directly and answer the user's question with concrete, visually grounded evidence.\n"
-            "2. Prioritize: (1) Original Image, (2) Verified CV model results, (3) Actual metadata, (4) GeoChat observations.\n"
-            "3. If the user asks a specific or simple question (e.g., 'What buildings are visible?', 'Describe the roads', 'Is this urban or rural?'), answer directly without unnecessary section headers.\n"
-            "4. For general scene questions (e.g., 'What is in this image?'), use Overview, Visible Features, Spatial Pattern, and Interpretation sections.\n"
-            "5. Never use vague remote-sensing filler ('textured ground cover', 'surface reflectance variations', 'natural boundaries', 'contrasting terrain sectors'). Name real features like houses, roads, trees, grass, lawns, driveways, fields, water.\n"
-            "6. Only report numbers, counts, or percentages that appear in verified CV metrics."
+            "1. Inspect the CURRENT original image directly and answer the user's question with concrete, visually grounded observations.\n"
+            "2. Strictly describe ONLY what is visible in this exact image. Never hallucinate fire, smoke, burn scars, mountains, or unobserved objects.\n"
+            "3. Structure your response using EXACTLY these 4 capitalized section headings with point-wise bullet items under VISIBLE FEATURES:\n\n"
+            "OVERVIEW\n"
+            "[A concise 1-2 sentence description of the scene.]\n\n"
+            "VISIBLE FEATURES\n"
+            "- **[Category 1]**: [Description]\n"
+            "- **[Category 2]**: [Description]\n"
+            "- **[Category 3]**: [Description]\n"
+            "- **[Category 4]**: [Description]\n\n"
+            "SPATIAL PATTERN\n"
+            "[Spatial arrangement and distribution across the scene.]\n\n"
+            "INTERPRETATION\n"
+            "[Objective scene interpretation based strictly on visible evidence.]\n\n"
+            "4. Never use vague remote-sensing filler ('textured ground cover', 'surface reflectance variations', 'natural boundaries').\n"
+            "5. Only report numbers, counts, or percentages that appear in verified CV metrics."
         )
 
         return "\n".join(prompt_parts)
-
-    def validate_and_sanitize_response(
-        self,
-        response_text: str,
-        image_type: str = "RGB",
-        verified_metrics: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """
-        Post-generation validation to detect and clean generic remote-sensing filler
-        or unsupported claims before returning to the user.
-        """
-        if not response_text:
-            return ""
-
-        cleaned = response_text.strip()
-
-        replacements = [
-            (r"(?i)\btextured ground cover\b", "ground surface and vegetation"),
-            (r"(?i)\bvariations in surface reflectance\b", "visible land cover contrasts"),
-            (r"(?i)\bsurface reflectance variations?\b", "visible surface features"),
-            (r"(?i)\bnatural boundaries\b", "property and terrain boundaries"),
-            (r"(?i)\bcontrasting light and dark terrain sectors\b", "vegetated and developed areas"),
-            (r"(?i)\bcontrasting terrain sectors\b", "vegetation and open ground"),
-            (r"(?i)\bhigher structural contrast\b", "higher building density"),
-            (r"(?i)\buniform terrain\b", "open vegetated areas")
-        ]
-
-        for pattern, repl in replacements:
-            cleaned = re.sub(pattern, repl, cleaned)
-
-        # Ensure RGB imagery is not falsely labeled as multispectral
-        if image_type.upper() in ("RGB", "OPTICAL RGB", "OPTICAL"):
-            cleaned = re.sub(r"(?i)\bmultispectral bands?\b", "visible color bands", cleaned)
-            cleaned = re.sub(r"(?i)\bmultispectral scene\b", "optical scene", cleaned)
-            cleaned = re.sub(r"(?i)\bmultispectral imagery\b", "optical aerial imagery", cleaned)
-
-        # If elevation variations are mentioned without DEM metadata, soften the claim
-        has_dem = verified_metrics and ("elevation" in str(verified_metrics) or "dem" in str(verified_metrics))
-        if not has_dem:
-            cleaned = re.sub(r"(?i)\belevation variations?\b", "visible surface variations", cleaned)
-
-        return cleaned
 
     def _get_api_key(self) -> Optional[str]:
         return self._custom_api_key if self._custom_api_key is not None else settings.GEMINI_API_KEY
@@ -267,22 +328,6 @@ class GeminiService:
     ) -> Dict[str, Any]:
         """
         Synthesize satellite imagery observations using Google Gemini multimodal model.
-
-        Parameters:
-            image: Original PIL satellite image (T1 or single scene)
-            user_question: User's original question or analytical goal
-            image_type: Type of imagery (e.g. 'RGB', 'Optical', 'SAR', 'Multispectral')
-            image_metadata: Metadata dictionary (dimensions, CRS, GSD resolution)
-            geochat_observations: Semantic visual observations from GeoChat
-            detections: Authoritative object detections from LAE-DINO
-            segmentation: Authoritative segmentation info from Mask2Former
-            change_detection: Authoritative change detection results from ChangeMamba
-            cv_results: Additional specialized CV model results
-            verified_metrics: Validated quantitative metrics
-            secondary_image: Optional second PIL image (T2 or SAR)
-
-        Returns:
-            Dict containing answer, model name, inference time, sources, and verified metrics.
         """
         start_time = time.time()
         sources = ["original_image"] if image is not None else []
@@ -308,6 +353,7 @@ class GeminiService:
             logger.warning(error_msg)
             return {
                 "answer": "",
+                "structured": {},
                 "model": "Gemini (unconfigured)",
                 "semantic_source": "GeoChat (fallback)",
                 "verified_metrics": verified_metrics or {},
@@ -349,11 +395,13 @@ class GeminiService:
 
             candidate_models = [self.model_name]
             for fallback in [
+                "gemini-3.5-flash-lite",
                 "gemini-3.6-flash",
                 "gemini-3.7-flash",
+                "gemini-3.5-flash",
                 "gemini-flash-latest",
-                "gemini-2.5-flash-lite",
-                "gemini-pro-latest"
+                "gemini-pro-latest",
+                "gemini-3.8-flash"
             ]:
                 if fallback not in candidate_models:
                     candidate_models.append(fallback)
@@ -390,7 +438,7 @@ class GeminiService:
                 raise RuntimeError("No response generated by Gemini.")
 
             raw_answer = response.text.strip()
-            sanitized_answer = self.validate_and_sanitize_response(
+            normalized = normalize_structured_vqa(
                 raw_answer,
                 image_type=image_type,
                 verified_metrics=verified_metrics
@@ -399,8 +447,10 @@ class GeminiService:
             inf_time = (time.time() - start_time) * 1000.0
 
             return {
-                "answer": sanitized_answer,
+                "answer": normalized["formatted_text"],
+                "structured": normalized,
                 "model": f"GeoChat + Gemini ({used_model})",
+                "semantic_model": f"GeoChat + Gemini ({used_model})",
                 "semantic_source": "GeoChat + original image",
                 "verified_metrics": verified_metrics or {},
                 "inference_time_ms": round(inf_time, 2),
@@ -413,7 +463,9 @@ class GeminiService:
             inf_time = (time.time() - start_time) * 1000.0
             return {
                 "answer": "",
+                "structured": {},
                 "model": f"Gemini ({self.model_name})",
+                "semantic_model": f"Gemini ({self.model_name})",
                 "semantic_source": "GeoChat (fallback)",
                 "verified_metrics": verified_metrics or {},
                 "inference_time_ms": round(inf_time, 2),

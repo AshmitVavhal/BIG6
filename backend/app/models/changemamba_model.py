@@ -82,7 +82,7 @@ class VisualStateSpaceBlock(nn.Module):
 
         for t in range(seq_len):
             h = dt_A[:, t] * h + dt_B[:, t] * x[:, t, :, None]
-            y[:, t] = torch.einsum('bdn,bn->bd', h, C[:, t])
+            y[:, t] = (h * C[:, t].unsqueeze(1)).sum(dim=-1)
 
         return y + x * self.D
 

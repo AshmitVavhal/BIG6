@@ -212,7 +212,10 @@ class VQAPipeline:
             detections=lae_detections,
             segmentation=m2f_segmentation,
             geo_context=geo_meta.model_dump(),
-            provider="geochat"
+            provider="geochat",
+            geochat_observations=geochat_obs,
+            caption=caption,
+            geochat_ms=geochat_ms
         )
 
         answer = vqa_res["answer"]
