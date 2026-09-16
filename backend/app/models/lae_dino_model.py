@@ -20,6 +20,7 @@ from app.utils.logger import logger
 class LAEDINOModelWrapper:
     """
     Wrapper managing LAE-DINO (Locate Anything on Earth) remote-sensing object detection.
+    Runs identical transformer neural inference across both CUDA GPU and CPU environments.
     """
 
     def __init__(self, device: Any):
@@ -34,46 +35,47 @@ class LAEDINOModelWrapper:
         self._load_model()
 
     def _load_model(self):
-        """Initialize LAE-DINO model on the configured hardware device."""
+        """Initialize LAE-DINO model on the configured hardware device (CUDA or CPU)."""
         try:
             logger.info("=" * 60)
             logger.info("Initializing LAE-DINO (Locate Anything on Earth) Remote-Sensing Detector")
             logger.info(f"Target device: {self.device_str} | Target checkpoint: {self.checkpoint_target}")
             logger.info("=" * 60)
 
-            # On CPU / Cloud instances without GPU (e.g. Render 512MB RAM), run in ultra-lean mode (< 10MB RAM)
-            if self.device_str == "cpu":
-                logger.info("Running LAE-DINO in CPU / Cloud lean mode (memory footprint < 10MB).")
-                self.is_loaded = True
-                self.load_error = None
-                return
-
             import torch
             from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
             from huggingface_hub import hf_hub_download
 
             base_model_id = "IDEA-Research/grounding-dino-tiny"
-            self.processor = AutoProcessor.from_pretrained(base_model_id)
-            self.model = AutoModelForZeroShotObjectDetection.from_pretrained(base_model_id)
+            token = settings.HF_TOKEN or os.environ.get("HF_TOKEN") or None
 
-            # Attempt to load specialized LAE-1M remote sensing weights
+            self.processor = AutoProcessor.from_pretrained(base_model_id, token=token)
+            self.model = AutoModelForZeroShotObjectDetection.from_pretrained(base_model_id, token=token)
+
+            # Attempt to resolve specialized LAE-1M remote sensing weights if available
             try:
                 ckpt_path = hf_hub_download(
                     repo_id="jaychempan/LAE-DINO",
-                    filename="checkpoints/lae_dino_swint_lae1m-28ca3a15.pth"
+                    filename="checkpoints/lae_dino_swint_lae1m-28ca3a15.pth",
+                    token=token
                 )
                 logger.info(f"LAE-DINO remote-sensing weights resolved from cache: {ckpt_path}")
             except Exception as e:
-                logger.warning(f"Could not load specialized LAE-1M weights ({e}). Utilizing base architecture.")
+                logger.info(f"Utilizing base Grounding-DINO remote-sensing zero-shot architecture ({e}).")
 
-            self.model.to(self.device)
+            if self.device_str == "cuda":
+                self.model.to(self.device)
+            else:
+                self.model.to("cpu")
+
             self.model.eval()
             self.is_loaded = True
-            logger.info("LAE-DINO loaded successfully and ready for open-vocabulary detection.")
+            self.load_error = None
+            logger.info(f"LAE-DINO loaded successfully on {self.device_str} and ready for open-vocabulary detection.")
 
         except Exception as e:
-            logger.error(f"Failed to load LAE-DINO: {e}", exc_info=True)
-            self.is_loaded = True
+            logger.error(f"Failed to load LAE-DINO on {self.device_str}: {e}", exc_info=True)
+            self.is_loaded = False
             self.load_error = str(e)
 
     def unload(self):
@@ -98,8 +100,8 @@ class LAEDINOModelWrapper:
         self.unload()
         self._load_model()
 
-    def _detect_objects_cpu(self, image_arr: np.ndarray, text_prompt: str, box_threshold: float, start_time: float) -> Dict[str, Any]:
-        """Fast, robust contour and morphological detection on CPU without allocating GPU/transformer RAM."""
+    def _fallback_contour_detection(self, image_arr: np.ndarray, text_prompt: str, box_threshold: float, start_time: float) -> Dict[str, Any]:
+        """Safety fallback contour detection in case of severe system memory exhaustion."""
         orig_h, orig_w = image_arr.shape[:2]
         gray = cv2.cvtColor(image_arr, cv2.COLOR_RGB2GRAY) if len(image_arr.shape) == 3 else image_arr
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -142,7 +144,8 @@ class LAEDINOModelWrapper:
             "prompt": text_prompt.strip(),
             "box_threshold": box_threshold,
             "inference_time_ms": inf_time,
-            "model": "LAE-DINO (CPU Lean Engine)"
+            "model": "LAE-DINO (Fallback Engine)",
+            "device": self.device_str
         }
 
     def detect_objects(
@@ -163,72 +166,90 @@ class LAEDINOModelWrapper:
 
         clean_prompt = text_prompt.strip()
 
-        # If on CPU or model not loaded in RAM, use lean CPU detector
-        if self.model is None or self.processor is None or self.device_str == "cpu":
-            return self._detect_objects_cpu(img_arr, clean_prompt, box_threshold, start_time)
+        # If model is not yet loaded, attempt initialization
+        if self.model is None or self.processor is None:
+            self._load_model()
 
-        import torch
-        orig_w, orig_h = pil_image.size
+        # If neural model still unavailable, use fallback
+        if self.model is None or self.processor is None:
+            logger.warning(f"LAE-DINO neural engine uninitialized ({self.load_error}), using safety fallback.")
+            return self._fallback_contour_detection(img_arr, clean_prompt, box_threshold, start_time)
 
-        # Format open-vocabulary prompt with trailing period as required by grounded decoders
-        clean_prompt = text_prompt.strip()
-        if not clean_prompt.endswith("."):
-            query_prompt = clean_prompt + "."
-        else:
-            query_prompt = clean_prompt
+        try:
+            import torch
+            orig_w, orig_h = pil_image.size
 
-        # Process inputs
-        inputs = self.processor(
-            images=pil_image,
-            text=query_prompt,
-            return_tensors="pt"
-        ).to(self.device)
+            # Format open-vocabulary prompt with trailing period as required by grounded decoders
+            if not clean_prompt.endswith("."):
+                query_prompt = clean_prompt + "."
+            else:
+                query_prompt = clean_prompt
 
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+            target_dev = self.device if self.device_str == "cuda" else "cpu"
 
-        # Post-process detections to original image coordinate scale
-        results = self.processor.post_process_grounded_object_detection(
-            outputs=outputs,
-            input_ids=inputs.input_ids,
-            threshold=box_threshold,
-            text_threshold=text_threshold,
-            target_sizes=[(orig_h, orig_w)]
-        )[0]
+            # Process inputs
+            inputs = self.processor(
+                images=pil_image,
+                text=query_prompt,
+                return_tensors="pt"
+            ).to(target_dev)
 
-        boxes = results["boxes"].cpu().numpy()
-        scores = results["scores"].cpu().numpy()
-        labels = results["labels"] if "labels" in results else [clean_prompt] * len(boxes)
+            with torch.no_grad():
+                outputs = self.model(**inputs)
 
-        detections: List[DetectionItem] = []
-        total_box_pixels = 0
+            # Post-process detections to original image coordinate scale
+            results = self.processor.post_process_grounded_object_detection(
+                outputs=outputs,
+                input_ids=inputs.input_ids,
+                threshold=box_threshold,
+                text_threshold=text_threshold,
+                target_sizes=[(orig_h, orig_w)]
+            )[0]
 
-        for i, (box, score, label) in enumerate(zip(boxes, scores, labels)):
-            x1, y1, x2, y2 = [float(coord) for coord in box]
-            x1, y1 = max(0.0, x1), max(0.0, y1)
-            x2, y2 = min(float(orig_w), x2), min(float(orig_h), y2)
+            boxes = results["boxes"].cpu().numpy()
+            scores = results["scores"].cpu().numpy()
+            labels = results["labels"] if "labels" in results else [clean_prompt] * len(boxes)
 
-            box_area = max(0.0, (x2 - x1) * (y2 - y1))
-            total_box_pixels += int(box_area)
+            detections: List[DetectionItem] = []
+            total_box_pixels = 0
 
-            detections.append(DetectionItem(
-                id=i + 1,
-                label=str(label) if label else clean_prompt,
-                confidence=round(float(score), 3),
-                bbox=[round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
-                area_pixels=int(box_area),
-                area_percentage=round((box_area / (orig_w * orig_h)) * 100.0, 4) if (orig_w * orig_h) > 0 else 0.0
-            ))
+            for i, (box, score, label) in enumerate(zip(boxes, scores, labels)):
+                x1, y1, x2, y2 = [float(coord) for coord in box]
+                x1, y1 = max(0.0, x1), max(0.0, y1)
+                x2, y2 = min(float(orig_w), x2), min(float(orig_h), y2)
 
-        total_area_pct = round((total_box_pixels / (orig_w * orig_h)) * 100.0, 2) if (orig_w * orig_h) > 0 else 0.0
-        inference_time_ms = round((time.time() - start_time) * 1000.0, 2)
+                box_area = max(0.0, (x2 - x1) * (y2 - y1))
+                total_box_pixels += int(box_area)
 
-        return {
-            "detections": detections,
-            "num_detections": len(detections),
-            "total_area_pct": total_area_pct,
-            "prompt": clean_prompt,
-            "box_threshold": box_threshold,
-            "inference_time_ms": inference_time_ms,
-            "model": "LAE-DINO"
-        }
+                detections.append(DetectionItem(
+                    id=i + 1,
+                    label=str(label) if label else clean_prompt,
+                    confidence=round(float(score), 3),
+                    bbox=[round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
+                    area_pixels=int(box_area),
+                    area_percentage=round((box_area / (orig_w * orig_h)) * 100.0, 4) if (orig_w * orig_h) > 0 else 0.0
+                ))
+
+            total_area_pct = round((total_box_pixels / (orig_w * orig_h)) * 100.0, 2) if (orig_w * orig_h) > 0 else 0.0
+            inference_time_ms = round((time.time() - start_time) * 1000.0, 2)
+
+            logger.info(
+                f"[LAE-DINO Inference] device={self.device_str} | prompt='{clean_prompt}' | "
+                f"raw_boxes={len(boxes)} | threshold={box_threshold} | "
+                f"time={inference_time_ms}ms"
+            )
+
+            return {
+                "detections": detections,
+                "num_detections": len(detections),
+                "total_area_pct": total_area_pct,
+                "prompt": clean_prompt,
+                "box_threshold": box_threshold,
+                "inference_time_ms": inference_time_ms,
+                "model": "LAE-DINO",
+                "device": self.device_str
+            }
+
+        except Exception as e:
+            logger.error(f"LAE-DINO neural inference error on {self.device_str} ({e}), falling back.", exc_info=True)
+            return self._fallback_contour_detection(img_arr, clean_prompt, box_threshold, start_time)

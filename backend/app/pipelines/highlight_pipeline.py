@@ -94,38 +94,62 @@ class HighlightPipeline:
         )
 
         if use_refinement and raw_detections:
-            t_m2f = time.time()
-            boxes_list = [d.bbox for d in raw_detections]
-            labels_list = [d.label for d in raw_detections]
-            refined_items = mask2former.refine_detections_to_masks(img_rgb, boxes_list, labels_list)
-            m2f_ms = round((time.time() - t_m2f) * 1000.0, 1)
+            try:
+                t_m2f = time.time()
+                boxes_list = [d.bbox for d in raw_detections]
+                labels_list = [d.label for d in raw_detections]
+                refined_items = mask2former.refine_detections_to_masks(img_rgb, boxes_list, labels_list)
+                m2f_ms = round((time.time() - t_m2f) * 1000.0, 1)
 
-            for item, orig_d in zip(refined_items, raw_detections):
-                poly = item.get("polygon")
-                if poly:
-                    cv2.fillPoly(full_mask, [np.array(poly, dtype=np.int32)], 255)
-                else:
-                    x1, y1, x2, y2 = [int(c) for c in item["bbox"]]
+                for item, orig_d in zip(refined_items, raw_detections):
+                    poly = item.get("polygon")
+                    if poly and len(poly) >= 3:
+                        cv2.fillPoly(full_mask, [np.array(poly, dtype=np.int32)], 255)
+                    else:
+                        x1, y1, x2, y2 = [int(c) for c in item["bbox"]]
+                        full_mask[y1:y2, x1:x2] = 255
+
+                    bx = item["bbox"]
+                    norm_box = [
+                        round(bx[1] / h, 4) if h > 0 else 0.0,
+                        round(bx[0] / w, 4) if w > 0 else 0.0,
+                        round(bx[3] / h, 4) if h > 0 else 0.0,
+                        round(bx[2] / w, 4) if w > 0 else 0.0
+                    ]
+
+                    refined_detected_regions.append(DetectedRegion(
+                        id=item["id"],
+                        label=item["label"],
+                        confidence=orig_d.confidence,
+                        confidence_type="model",
+                        bounding_box=item["bbox"],
+                        normalized_box=norm_box,
+                        area_pixels=int(item.get("area_pixels", orig_d.area_pixels)),
+                        mask_polygon=poly if (poly and len(poly) >= 3) else [[int(bx[0]), int(bx[1])], [int(bx[2]), int(bx[1])], [int(bx[2]), int(bx[3])], [int(bx[0]), int(bx[3])]]
+                    ))
+            except Exception as e:
+                logger.error(f"Mask2Former refinement encountered error ({e}); falling back to box contours.", exc_info=True)
+                refined_detected_regions = []
+                for d in raw_detections:
+                    x1, y1, x2, y2 = [int(c) for c in d.bbox]
                     full_mask[y1:y2, x1:x2] = 255
-
-                bx = item["bbox"]
-                norm_box = [
-                    round(bx[1] / h, 4) if h > 0 else 0.0,
-                    round(bx[0] / w, 4) if w > 0 else 0.0,
-                    round(bx[3] / h, 4) if h > 0 else 0.0,
-                    round(bx[2] / w, 4) if w > 0 else 0.0
-                ]
-
-                refined_detected_regions.append(DetectedRegion(
-                    id=item["id"],
-                    label=item["label"],
-                    confidence=orig_d.confidence,
-                    confidence_type="model",
-                    bounding_box=item["bbox"],
-                    normalized_box=norm_box,
-                    area_pixels=int(item.get("area_pixels", orig_d.area_pixels)),
-                    mask_polygon=poly
-                ))
+                    bx = d.bbox
+                    norm_box = [
+                        round(bx[1] / h, 4) if h > 0 else 0.0,
+                        round(bx[0] / w, 4) if w > 0 else 0.0,
+                        round(bx[3] / h, 4) if h > 0 else 0.0,
+                        round(bx[2] / w, 4) if w > 0 else 0.0
+                    ]
+                    refined_detected_regions.append(DetectedRegion(
+                        id=d.id,
+                        label=d.label,
+                        confidence=d.confidence,
+                        confidence_type="model",
+                        bounding_box=d.bbox,
+                        normalized_box=norm_box,
+                        area_pixels=d.area_pixels,
+                        mask_polygon=[[int(bx[0]), int(bx[1])], [int(bx[2]), int(bx[1])], [int(bx[2]), int(bx[3])], [int(bx[0]), int(bx[3])]]
+                    ))
         else:
             for d in raw_detections:
                 x1, y1, x2, y2 = [int(c) for c in d.bbox]
@@ -147,6 +171,16 @@ class HighlightPipeline:
                     area_pixels=d.area_pixels,
                     mask_polygon=[[int(bx[0]), int(bx[1])], [int(bx[2]), int(bx[1])], [int(bx[2]), int(bx[3])], [int(bx[0]), int(bx[3])]]
                 ))
+
+        confs = [d.confidence for d in refined_detected_regions]
+        conf_min = min(confs) if confs else 0.0
+        conf_max = max(confs) if confs else 0.0
+        logger.info(
+            f"[Highlight Pipeline Diagnostic] device={lae_dino.device_str} | image_size={w}x{h} | "
+            f"prompt='{request.prompt}' | threshold={request.box_threshold} | "
+            f"raw_detections={len(raw_detections)} | refined_regions={len(refined_detected_regions)} | "
+            f"conf_range=[{conf_min}, {conf_max}]"
+        )
 
         trace.append(ExecutionStage(
             stage="Mask Assembly",

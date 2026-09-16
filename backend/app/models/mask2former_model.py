@@ -1,7 +1,7 @@
 """
 SatQuery AI - Mask2Former Universal Remote-Sensing Segmentation Model
 Reference: "Masked-attention Mask Transformer for Universal Image Segmentation" (Cheng et al.)
-Provides pixel-level semantic segmentation and structured mask extraction.
+Provides pixel-level semantic segmentation and structured mask extraction across CUDA and CPU.
 """
 
 import os
@@ -19,6 +19,7 @@ from app.utils.logger import logger
 class Mask2FormerModelWrapper:
     """
     Wrapper managing Mask2Former universal segmentation on satellite imagery.
+    Runs transformer semantic segmentation across both CUDA and CPU hardware.
     """
 
     def __init__(self, device: Any):
@@ -34,36 +35,37 @@ class Mask2FormerModelWrapper:
         self._load_model()
 
     def _load_model(self):
-        """Initialize Mask2Former model on the configured hardware device."""
+        """Initialize Mask2Former model on the configured hardware device (CUDA or CPU)."""
         try:
             logger.info("=" * 60)
             logger.info("Initializing Mask2Former Universal Segmentation Network")
             logger.info(f"Target device: {self.device_str} | Target checkpoint: {self.checkpoint_target}")
             logger.info("=" * 60)
 
-            # On CPU / Cloud instances without GPU (e.g. Render 512MB RAM), run in ultra-lean mode (< 10MB RAM)
-            if self.device_str == "cpu":
-                logger.info("Running Mask2Former in CPU / Cloud lean mode (memory footprint < 10MB).")
-                self.is_loaded = True
-                self.load_error = None
-                return
-
             import torch
             from transformers import Mask2FormerForUniversalSegmentation, Mask2FormerImageProcessor
 
             model_id = self.checkpoint_target
-            self.processor = Mask2FormerImageProcessor.from_pretrained(model_id)
-            self.model = Mask2FormerForUniversalSegmentation.from_pretrained(model_id)
+            token = settings.HF_TOKEN or os.environ.get("HF_TOKEN") or None
+
+            self.processor = Mask2FormerImageProcessor.from_pretrained(model_id, token=token)
+            self.model = Mask2FormerForUniversalSegmentation.from_pretrained(model_id, token=token)
 
             self.id2label = {int(k): str(v) for k, v in self.model.config.id2label.items()}
-            self.model.to(self.device)
+
+            if self.device_str == "cuda":
+                self.model.to(self.device)
+            else:
+                self.model.to("cpu")
+
             self.model.eval()
             self.is_loaded = True
-            logger.info(f"Mask2Former loaded successfully ({len(self.id2label)} classes). Ready for segmentation.")
+            self.load_error = None
+            logger.info(f"Mask2Former loaded successfully on {self.device_str} ({len(self.id2label)} classes). Ready for segmentation.")
 
         except Exception as e:
-            logger.error(f"Failed to load Mask2Former: {e}", exc_info=True)
-            self.is_loaded = True
+            logger.error(f"Failed to load Mask2Former on {self.device_str}: {e}", exc_info=True)
+            self.is_loaded = False
             self.load_error = str(e)
 
     def unload(self):
@@ -88,8 +90,8 @@ class Mask2FormerModelWrapper:
         self.unload()
         self._load_model()
 
-    def _segment_image_cpu(self, image_arr: np.ndarray, start_time: float) -> Dict[str, Any]:
-        """Fast, robust multi-class surface land-cover segmentation on CPU (< 5MB RAM)."""
+    def _fallback_segment_image(self, image_arr: np.ndarray, start_time: float) -> Dict[str, Any]:
+        """Safety fallback multi-class land-cover segmentation."""
         orig_h, orig_w = image_arr.shape[:2]
         total_pixels = orig_h * orig_w
 
@@ -98,7 +100,6 @@ class Mask2FormerModelWrapper:
         b = image_arr[:, :, 2].astype(float)
         lum = 0.299 * r + 0.587 * g + 0.114 * b
 
-        # Fast mask categorization
         veg_mask = (g > r + 3) & (g > b + 3) & (lum > 20)
         water_mask = (b > r + 10) & (b > g + 5) & (lum < 150)
         built_mask = ((lum >= 18) & (lum <= 78) & (np.abs(r - g) < 22)) | ((lum > 140) & (lum <= 235) & (np.abs(r - g) < 28))
@@ -133,7 +134,7 @@ class Mask2FormerModelWrapper:
             "classes_present": [c["label"] for c in class_distributions],
             "total_pixels": total_pixels,
             "inference_time_ms": inf_time,
-            "model": "Mask2Former (CPU Lean Engine)",
+            "model": "Mask2Former (Fallback Engine)",
             "segmentation_type": "semantic"
         }
 
@@ -150,53 +151,60 @@ class Mask2FormerModelWrapper:
             pil_image = image.convert("RGB")
             img_arr = np.array(pil_image)
 
-        # If on CPU or model not loaded in RAM, use lean CPU segmenter
-        if self.model is None or self.processor is None or self.device_str == "cpu":
-            return self._segment_image_cpu(img_arr, start_time)
+        # If model not yet loaded, attempt loading
+        if self.model is None or self.processor is None:
+            self._load_model()
 
-        import torch
-        orig_w, orig_h = pil_image.size
+        if self.model is None or self.processor is None:
+            return self._fallback_segment_image(img_arr, start_time)
 
-        inputs = self.processor(images=pil_image, return_tensors="pt").to(self.device)
+        try:
+            import torch
+            orig_w, orig_h = pil_image.size
+            target_dev = self.device if self.device_str == "cuda" else "cpu"
 
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+            inputs = self.processor(images=pil_image, return_tensors="pt").to(target_dev)
 
-        # Post-process semantic segmentation to original image size
-        semantic_maps = self.processor.post_process_semantic_segmentation(
-            outputs=outputs,
-            target_sizes=[(orig_h, orig_w)]
-        )
-        semantic_map = semantic_maps[0].cpu().numpy() # (H, W)
+            with torch.no_grad():
+                outputs = self.model(**inputs)
 
-        # Calculate exact class area statistics
-        unique_classes, counts = np.unique(semantic_map, return_counts=True)
-        total_pixels = orig_h * orig_w
-        class_distributions: List[Dict[str, Any]] = []
+            # Post-process semantic segmentation to original image size
+            semantic_maps = self.processor.post_process_semantic_segmentation(
+                outputs=outputs,
+                target_sizes=[(orig_h, orig_w)]
+            )
+            semantic_map = semantic_maps[0].cpu().numpy()
 
-        for cls_id, cnt in zip(unique_classes, counts):
-            label_name = self.id2label.get(int(cls_id), f"class_{cls_id}")
-            pct = round((float(cnt) / total_pixels) * 100.0, 2)
-            class_distributions.append({
-                "class_id": int(cls_id),
-                "label": label_name,
-                "pixel_count": int(cnt),
-                "area_percentage": pct
-            })
+            # Calculate exact class area statistics
+            unique_classes, counts = np.unique(semantic_map, return_counts=True)
+            total_pixels = orig_h * orig_w
+            class_distributions: List[Dict[str, Any]] = []
 
-        # Sort by area descending
-        class_distributions.sort(key=lambda x: x["pixel_count"], reverse=True)
-        inference_time_ms = round((time.time() - start_time) * 1000.0, 2)
+            for cls_id, cnt in zip(unique_classes, counts):
+                label_name = self.id2label.get(int(cls_id), f"class_{cls_id}")
+                pct = round((float(cnt) / total_pixels) * 100.0, 2)
+                class_distributions.append({
+                    "class_id": int(cls_id),
+                    "label": label_name,
+                    "pixel_count": int(cnt),
+                    "area_percentage": pct
+                })
 
-        return {
-            "semantic_mask": semantic_map,
-            "class_distributions": class_distributions,
-            "classes_present": [c["label"] for c in class_distributions],
-            "total_pixels": total_pixels,
-            "inference_time_ms": inference_time_ms,
-            "model": "Mask2Former",
-            "segmentation_type": "semantic"
-        }
+            class_distributions.sort(key=lambda x: x["pixel_count"], reverse=True)
+            inference_time_ms = round((time.time() - start_time) * 1000.0, 2)
+
+            return {
+                "semantic_mask": semantic_map,
+                "class_distributions": class_distributions,
+                "classes_present": [c["label"] for c in class_distributions],
+                "total_pixels": total_pixels,
+                "inference_time_ms": inference_time_ms,
+                "model": "Mask2Former",
+                "segmentation_type": "semantic"
+            }
+        except Exception as e:
+            logger.error(f"Mask2Former segmentation error on {self.device_str} ({e}), falling back.", exc_info=True)
+            return self._fallback_segment_image(img_arr, start_time)
 
     def refine_detections_to_masks(
         self,
@@ -220,6 +228,9 @@ class Mask2FormerModelWrapper:
                 continue
 
             crop = image_rgb[y1:y2, x1:x2]
+            if crop.size == 0:
+                continue
+
             gray_crop = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
 
             _, local_mask = cv2.threshold(gray_crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -230,11 +241,11 @@ class Mask2FormerModelWrapper:
             poly_points: List[List[float]] = []
             if contours:
                 largest_c = max(contours, key=cv2.contourArea)
-                for pt in largest_c.squeeze():
-                    if len(pt) == 2:
-                        poly_points.append([float(pt[0] + x1), float(pt[1] + y1)])
+                pts = largest_c.reshape(-1, 2)
+                for pt in pts:
+                    poly_points.append([float(pt[0] + x1), float(pt[1] + y1)])
 
-            if not poly_points:
+            if len(poly_points) < 3:
                 poly_points = [[float(x1), float(y1)], [float(x2), float(y1)], [float(x2), float(y2)], [float(x1), float(y2)]]
 
             refined_items.append({

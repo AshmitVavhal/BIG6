@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     CHANGE_THRESHOLD: float = float(os.getenv("CHANGE_THRESHOLD", "0.5"))
 
     # Hugging Face Authentication (Backend only)
-    HF_TOKEN: str | None = None
+    HF_TOKEN: str | None = os.getenv("HF_TOKEN", None)
 
     # Google Gemini API Configuration (Backend only, never expose to frontend)
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY", None)
