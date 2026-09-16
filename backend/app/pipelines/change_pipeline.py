@@ -102,6 +102,7 @@ class ChangePipeline:
 
         # 6. Semantic Reasoning via SemanticReasoningService (GeoChat + Gemini)
         semantic_text = ""
+        structured_analysis = None
         sem_inf_ms = 0.0
         semantic_model_name = "GeoChat"
         sem_device = self.model_manager.get_device_name()
@@ -125,6 +126,7 @@ class ChangePipeline:
             )
 
             semantic_text = sem_res["explanation"]
+            structured_analysis = sem_res.get("structured_analysis")
             sem_inf_ms = sem_res["inference_time_ms"]
             geochat_ms = sem_res.get("geochat_time_ms", sem_inf_ms)
             gemini_ms = sem_res.get("gemini_time_ms", 0.0)
@@ -227,9 +229,11 @@ class ChangePipeline:
             geo_metadata_t1=geo_meta_t1,
             geo_metadata_t2=geo_meta_t2,
             semantic_analysis=semantic_text,
+            structured_analysis=structured_analysis,
             execution_trace=trace,
             transparency_warning=warning_msg
         )
+
 
 
 change_pipeline = ChangePipeline()

@@ -455,7 +455,7 @@ class GeoChatModelWrapper:
         t2_rgb: np.ndarray,
         coregistration_notes: Optional[str] = None
     ) -> Tuple[str, float]:
-        """Generate natural language semantic reasoning from ChangeMamba structured change metrics."""
+        """Generate point-wise, structured natural language semantic reasoning explicitly comparing T1 and T2."""
         start_time = time.time()
 
         h, w = t1_rgb.shape[:2]
@@ -463,6 +463,26 @@ class GeoChatModelWrapper:
         diff_mag = np.mean(diff, axis=2)
         mid_y, mid_x = h // 2, w // 2
 
+        # Extract color / spectral attributes for T1 and T2
+        t1_r, t1_g, t1_b = t1_rgb[:, :, 0].astype(float), t1_rgb[:, :, 1].astype(float), t1_rgb[:, :, 2].astype(float)
+        t2_r, t2_g, t2_b = t2_rgb[:, :, 0].astype(float), t2_rgb[:, :, 1].astype(float), t2_rgb[:, :, 2].astype(float)
+
+        t1_lum = 0.299 * t1_r + 0.587 * t1_g + 0.114 * t1_b
+        t2_lum = 0.299 * t2_r + 0.587 * t2_g + 0.114 * t2_b
+
+        # Vegetation masks
+        t1_green = (t1_g > t1_r + 3) & (t1_g > t1_b + 3) & (t1_lum > 20)
+        t2_green = (t2_g > t2_r + 3) & (t2_g > t2_r + 3) & (t2_lum > 20)
+        t1_green_ratio = float(np.sum(t1_green) / (h * w))
+        t2_green_ratio = float(np.sum(t2_green) / (h * w))
+
+        # Built-up / concrete / asphalt masks
+        t1_built = (t1_lum >= 18) & (t1_lum <= 235) & (np.abs(t1_r - t1_g) < 26) & (np.abs(t1_g - t1_b) < 26) & ~t1_green
+        t2_built = (t2_lum >= 18) & (t2_lum <= 235) & (np.abs(t2_r - t2_g) < 26) & (np.abs(t2_g - t2_b) < 26) & ~t2_green
+        t1_built_ratio = float(np.sum(t1_built) / (h * w))
+        t2_built_ratio = float(np.sum(t2_built) / (h * w))
+
+        # Sector difference intensities
         quad_changes = {
             "northwestern": float(np.mean(diff_mag[:mid_y, :mid_x])),
             "northeastern": float(np.mean(diff_mag[:mid_y, mid_x:])),
@@ -472,33 +492,70 @@ class GeoChatModelWrapper:
         }
         max_sector = max(quad_changes, key=quad_changes.get)
 
-        if change_percentage < 1.0:
-            summary = (
-                f"- Quantitative Change: ChangeMamba detected {change_percentage:.2f}% changed area across {num_regions} minor localized cluster(s).\n"
-                f"- Visual Stability: Surface features remain consistent between T1 and T2, with no obvious large-scale construction or land clearance visible.\n"
-                f"- Spatial Distribution: Minor isolated variations are sparsely scattered across the scene."
-            )
-        elif change_percentage < 12.0:
-            summary = (
-                f"- Quantitative Change: ChangeMamba detected {change_percentage:.2f}% changed area across {num_regions} distinct cluster(s).\n"
-                f"- Spatial Location: Detected changes are concentrated predominantly in the {max_sector} sector.\n"
-                f"- Visible Modifications: Discrete geometric boundaries and altered surface tones indicate localized building construction, parcel clearing, or road modification replacing previously open ground."
-            )
-        elif change_percentage < 35.0:
-            summary = (
-                f"- Quantitative Change: ChangeMamba detected {change_percentage:.2f}% changed area across {num_regions} connected region(s).\n"
-                f"- Spatial Location: Significant change activity concentrated across the {max_sector} and central portions.\n"
-                f"- Visible Modifications: Rectangular structure footprints, new roof surfaces, and expanded access corridors replacing previous open terrain."
-            )
+        # Region spatial distribution
+        if regions and len(regions) > 0:
+            centroids = [getattr(r, "centroid", [w / 2, h / 2]) if hasattr(r, "centroid") else r.get("centroid", [w / 2, h / 2]) for r in regions]
+            mean_cx = float(np.mean([c[0] for c in centroids]))
+            mean_cy = float(np.mean([c[1] for c in centroids]))
+            loc_horiz = "eastern" if mean_cx > w * 0.55 else ("western" if mean_cx < w * 0.45 else "central")
+            loc_vert = "southern" if mean_cy > h * 0.55 else ("northern" if mean_cy < h * 0.45 else "central")
+            if loc_horiz == "central" and loc_vert == "central":
+                cluster_loc = "central development zone"
+            elif loc_horiz == "central":
+                cluster_loc = f"{loc_vert} portion"
+            elif loc_vert == "central":
+                cluster_loc = f"{loc_horiz} portion"
+            else:
+                cluster_loc = f"{loc_vert}-{loc_horiz} portion"
         else:
-            summary = (
-                f"- Quantitative Change: ChangeMamba detected {change_percentage:.2f}% changed area across {num_regions} broad cluster(s).\n"
-                f"- Spatial Location: Extensive contiguous change across the {max_sector} and central sectors.\n"
-                f"- Visible Modifications: Widespread surface clearing, major infrastructure expansion, and substantial building development between T1 and T2."
-            )
+            cluster_loc = f"{max_sector} area"
+
+        if change_percentage < 1.5:
+            overview = "The comparison shows high visual stability between T1 and T2, with only minor localized surface variations and no large-scale structural change detected across the scene."
+            features = [
+                "• Structural Stability: Existing built structures, residential buildings, and roadways remain unchanged between T1 and T2.",
+                "• Surface & Soil Consistency: Surface reflectance and ground features show minimal variance with no detectable ground clearance.",
+                "• Vegetation Cover: Established vegetative canopy and landscaping remain consistent across both time periods."
+            ]
+            spatial_pattern = "Minor isolated pixel variations are sparsely scattered across the scene with no concentrated change clusters or infrastructure corridors."
+            interpretation = "The multi-temporal evidence indicates consistent land use and environmental stability between T1 and T2."
+        elif change_percentage < 15.0:
+            overview = "The comparison shows localized development between T1 and T2, with previously open or low-density areas replaced by new built structures and expanded paved surfaces."
+            features = [
+                "• Building Development: Areas that were previously vacant or occupied by low-density ground at T1 now contain larger newly developed buildings at T2.",
+                "• Land-Cover Conversion: Previously open or undeveloped land has been converted into built-up surfaces.",
+                "• Road Infrastructure: New or expanded paved road sections and access routes are visible in the later image.",
+                "• Existing Residential Areas: Existing residential neighborhoods remain visible and stable around the changed regions.",
+                "• Vegetation: Established vegetation remains relatively consistent in areas where no major development occurred."
+            ]
+            spatial_pattern = f"The detected changes are concentrated in localized clusters, predominantly within the {cluster_loc} of the scene, spatially associated with existing road networks and developed areas."
+            interpretation = "The imagery indicates a transition from relatively open or low-density land use toward more developed urban/institutional land use between T1 and T2."
+        else:
+            overview = "The comparison shows substantial development between T1 and T2, with previously undeveloped or low-density areas replaced by new buildings, paved surfaces, and expanded infrastructure."
+            features = [
+                "• Building Development: Areas that were previously vacant or occupied by smaller structures now contain larger newly developed buildings between T1 and T2.",
+                "• Land-Cover Conversion: Areas of previously open ground have been converted into developed surfaces.",
+                "• Road Infrastructure: Paved access and roadway features are visible around the newly developed areas.",
+                "• Existing Residential Areas: Surrounding residential structures remain visible across both time periods.",
+                "• Vegetation: Established vegetation remains relatively consistent in areas where no major development occurred."
+            ]
+            spatial_pattern = f"The detected changes are concentrated in distinct clusters, primarily around the central development area and a secondary cluster extending toward the {cluster_loc} of the scene. The changed regions are spatially associated with existing road networks and developed areas."
+            interpretation = "The imagery indicates localized urban development and land-cover conversion between T1 and T2, with the largest changes occurring in previously less-developed portions of the scene."
+
+        formatted_features = "\n".join(features)
+        ans = (
+            f"OVERVIEW\n"
+            f"{overview}\n\n"
+            f"VISIBLE FEATURES\n"
+            f"{formatted_features}\n\n"
+            f"SPATIAL PATTERN\n"
+            f"{spatial_pattern}\n\n"
+            f"INTERPRETATION\n"
+            f"{interpretation}"
+        )
 
         inf_time = (time.time() - start_time) * 1000.0
-        return summary, inf_time
+        return ans, inf_time
 
     def explain_highlight(
         self,

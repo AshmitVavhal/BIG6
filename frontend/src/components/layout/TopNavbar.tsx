@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cpu, HardDrive, RotateCcw, FileText, BarChart2, Satellite, Zap } from 'lucide-react';
+import { RotateCcw, FileText, BarChart2, Satellite, Radio } from 'lucide-react';
 import type { SystemStatus } from '../../types';
 
 interface TopNavbarProps {
@@ -18,118 +18,78 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   isProcessing
 }) => {
   const isCuda = Boolean(systemStatus && systemStatus.device?.toLowerCase() === 'cuda' && systemStatus.gpu_name);
-  const vramUsed = systemStatus?.vram_used_gb ?? 0;
-  const vramTotal = systemStatus?.vram_total_gb ?? 0;
-  const vramPct = vramTotal > 0 ? Math.round((vramUsed / vramTotal) * 100) : 0;
 
   return (
-    <header className="h-14 bg-sat-panel border-b border-sat-border flex items-center justify-between px-4 z-30 select-none">
-      {/* Left: Branding & Mission Badge */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded bg-sat-accent/15 border border-sat-accent flex items-center justify-center text-sat-accent">
-            <Satellite className="w-4 h-4" />
+    <header className="h-12 bg-sat-bg border-b border-sat-border flex items-center justify-between px-3 z-30 select-none">
+      {/* Left Section: Branding & System State */}
+      <div className="flex items-center space-x-2.5">
+        {/* SatQuery AI Brand Pill */}
+        <div className="flex items-center space-x-2 bg-sat-panel px-2.5 py-1 rounded-md border border-sat-border">
+          <div className="w-5 h-5 rounded bg-sat-surface flex items-center justify-center text-sat-accent">
+            <Satellite className="w-3.5 h-3.5" />
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-sm tracking-wider text-sat-text font-mono">SATQUERY AI</span>
-              <span className="text-[10px] bg-sat-surface px-1.5 py-0.5 rounded text-sat-muted border border-sat-border font-mono">
-                v1.0.0
-              </span>
-            </div>
-            <div className="text-[11px] text-sat-muted font-mono flex items-center space-x-1.5">
-              <span className="text-sat-accent font-semibold">ISRO / SAC 26167</span>
-              <span>•</span>
-              <span>EARTH OBSERVATION WORKSTATION</span>
-            </div>
-          </div>
+          <span className="font-semibold text-xs tracking-tight text-white font-sans">
+            SatQuery AI
+          </span>
+          <span className="text-[11px] text-sat-muted font-mono font-medium pl-1 border-l border-sat-border">
+            ISRO SAC 26167
+          </span>
         </div>
 
-        {/* Live Status Indicator */}
-        <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-sat-surface rounded-full border border-sat-border text-[11px] font-mono">
-          <span className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-sat-warning animate-ping' : 'bg-sat-accent'}`} />
-          <span className={isProcessing ? 'text-sat-warning font-semibold' : 'text-sat-accent font-semibold'}>
-            {isProcessing ? 'PROCESSING INFERENCE' : 'ONLINE'}
+        {/* Live Status Pill */}
+        <div className="flex items-center space-x-2 px-2.5 py-1 bg-sat-panel/80 rounded-md border border-sat-border text-[11px] font-mono">
+          <span className="flex items-center space-x-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${isProcessing ? 'bg-sat-warning animate-ping' : 'bg-sat-accent'}`} />
+            <span className={isProcessing ? 'text-sat-warning font-semibold' : 'text-sat-accent font-semibold'}>
+              {isProcessing ? 'Processing' : 'Online'}
+            </span>
           </span>
-          <span className="text-sat-muted">|</span>
-          <span className="text-sat-text text-[10px] uppercase font-semibold">
+
+          <span className="text-sat-borderLight">·</span>
+
+          <span className="text-sat-textSecondary text-[10px]">
             {systemStatus
               ? isCuda
                 ? `CUDA GPU [${systemStatus.gpu_name}]`
-                : 'CPU MODE (NO CUDA)'
+                : 'CPU MODE (ACTIVE)'
               : 'INITIALIZING...'}
           </span>
-          <span className="text-sat-muted">|</span>
-          <span className="text-[10px] font-semibold flex items-center space-x-1 text-sat-accent">
-            <span>●</span>
-            <span>VLM REASONING</span>
-          </span>
-          <span className="text-sat-muted">|</span>
-          <span className={`text-[10px] font-semibold flex items-center space-x-1 ${
-            systemStatus?.gemini_configured ? 'text-sat-cyan' : 'text-sat-muted'
-          }`}>
-            <span>{systemStatus?.gemini_configured ? '●' : '○'}</span>
-            <span>{systemStatus?.gemini_configured ? 'MULTIMODAL REASONING' : 'MULTIMODAL OFFLINE'}</span>
-          </span>
         </div>
       </div>
 
-      {/* Center: Quick Benchmark trigger */}
-      <div className="hidden lg:flex items-center space-x-2">
+      {/* Right Section: Actions & Telemetry */}
+      <div className="flex items-center space-x-2">
+        {/* Benchmarks Trigger */}
         <button
           onClick={onOpenBenchmarks}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-sat-surface hover:bg-sat-surface/80 border border-sat-border hover:border-sat-borderLight rounded text-xs font-mono text-sat-text transition"
+          className="flex items-center space-x-1.5 px-2.5 py-1 bg-sat-panel hover:bg-sat-surface border border-sat-border hover:border-sat-borderLight rounded-md text-[11px] font-mono text-sat-textSecondary hover:text-white transition"
+          title="Hardware benchmarks and latency telemetry"
         >
-          <BarChart2 className="w-3.5 h-3.5 text-sat-accent" />
-          <span>BENCHMARKS</span>
+          <BarChart2 className="w-3.5 h-3.5 text-sat-muted" />
+          <span className="hidden md:inline">Benchmarks</span>
         </button>
-      </div>
-
-      {/* Right: Hardware telemetry gauges & actions */}
-      <div className="flex items-center space-x-3">
-        {/* VRAM / RAM / CPU Telemetry */}
-        <div className="hidden md:flex items-center space-x-3 bg-sat-darker px-3 py-1.5 rounded border border-sat-border font-mono text-[11px]">
-          {isCuda && vramTotal > 0 && (
-            <div className="flex items-center space-x-1.5" title={`VRAM: ${vramUsed} GB / ${vramTotal} GB`}>
-              <Zap className="w-3.5 h-3.5 text-sat-cyan" />
-              <span className="text-sat-muted">VRAM</span>
-              <span className="text-sat-text font-bold">{vramPct}%</span>
-            </div>
-          )}
-
-          <div className="flex items-center space-x-1.5" title="System RAM Usage">
-            <HardDrive className="w-3.5 h-3.5 text-sat-accent" />
-            <span className="text-sat-muted">RAM</span>
-            <span className="text-sat-text font-bold">{systemStatus?.ram_percent ?? 0}%</span>
-          </div>
-
-          <div className="flex items-center space-x-1.5" title="CPU Utilization">
-            <Cpu className="w-3.5 h-3.5 text-sat-warning" />
-            <span className="text-sat-muted">CPU</span>
-            <span className="text-sat-text font-bold">{systemStatus?.cpu_percent ?? 0}%</span>
-          </div>
-        </div>
 
         {/* Reset Button */}
         <button
           onClick={onReset}
-          className="flex items-center space-x-1 px-2.5 py-1.5 bg-sat-surface hover:bg-sat-surface/80 border border-sat-border hover:border-sat-borderLight rounded text-xs font-mono text-sat-muted hover:text-sat-text transition"
+          className="flex items-center space-x-1.5 px-2.5 py-1 bg-sat-panel hover:bg-sat-surface border border-sat-border hover:border-sat-borderLight rounded-md text-[11px] font-mono text-sat-textSecondary hover:text-white transition"
           title="Reset Workspace & Clear Cache"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Reset</span>
+          <RotateCcw className="w-3 h-3 text-sat-muted" />
+          <span>Reset</span>
         </button>
 
-        {/* Export Report */}
+        {/* Export Dossier / Report Button */}
         <button
           onClick={onOpenExport}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded text-xs font-mono shadow transition"
-          title="Generate and download intelligence PDF report"
+          className="flex items-center space-x-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-md text-xs font-sans shadow-sm transition active:scale-95"
+          title="Export satellite intelligence dossier"
         >
-          <FileText className="w-3.5 h-3.5" />
-          <span>Export Report</span>
+          <FileText className="w-3.5 h-3.5 text-slate-800" />
+          <span>Export Dossier</span>
         </button>
       </div>
     </header>
   );
 };
+

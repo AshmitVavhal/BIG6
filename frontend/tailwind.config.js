@@ -9,12 +9,13 @@ export default {
     extend: {
       colors: {
         sat: {
-          bg: '#080808',
-          darker: '#000000',
-          panel: '#101010',
-          surface: '#171717',
-          border: '#242424',
-          borderLight: '#333333',
+          bg: '#090a0d',
+          darker: '#060709',
+          panel: '#101217',
+          surface: '#161920',
+          surfaceHover: '#1c202a',
+          border: '#1f242e',
+          borderLight: '#2b3240',
           accent: '#10b981', // radar green
           accentHover: '#059669',
           accentDim: 'rgba(16, 185, 129, 0.12)',
@@ -24,8 +25,9 @@ export default {
           cyanDim: 'rgba(6, 182, 212, 0.12)',
           red: '#ef4444',
           redDim: 'rgba(239, 68, 68, 0.12)',
-          text: '#ededed',
-          muted: '#737373',
+          text: '#e6edf3',
+          textSecondary: '#94a3b8',
+          muted: '#64748b',
         }
       },
       fontFamily: {
@@ -36,3 +38,4 @@ export default {
   },
   plugins: [],
 }
+

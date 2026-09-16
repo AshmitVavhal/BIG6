@@ -130,7 +130,48 @@ def test_semantic_reasoning_pipeline_preserves_verified_change_metrics():
             )
             
             assert "explanation" in result
-            assert "36.68%" in result["explanation"]
+            assert "structured_analysis" in result
+            assert "overview" in result["structured_analysis"]
+            assert "visible_features" in result["structured_analysis"]
+            assert "spatial_pattern" in result["structured_analysis"]
+            assert "interpretation" in result["structured_analysis"]
+            assert "OVERVIEW" in result["explanation"]
+            assert "VISIBLE FEATURES" in result["explanation"]
+            assert "SPATIAL PATTERN" in result["explanation"]
+            assert "INTERPRETATION" in result["explanation"]
             assert "geochat_observations" in result
             assert "sources" in result
             assert "ChangeMamba" in str(result["sources"])
+
+def test_normalize_structured_change_format():
+    """Verify normalize_structured_change enforces the exact 4-part structure."""
+    from app.services.gemini_service import normalize_structured_change
+
+    raw_input = """
+OVERVIEW
+Substantial development occurred between T1 and T2 with new structures.
+
+VISIBLE FEATURES
+• Building Development: New buildings are constructed in the center at T2 compared to open land at T1.
+• Road Infrastructure: Paved road expanded between T1 and T2.
+• Vegetation: Peripheral greenery remains consistent.
+
+SPATIAL PATTERN
+Changes are concentrated in central clusters.
+
+INTERPRETATION
+Indicates urban expansion over previously undeveloped land.
+    """
+
+    res = normalize_structured_change(raw_input, change_percentage=18.5, num_regions=3)
+    assert res["overview"] == "Substantial development occurred between T1 and T2 with new structures."
+    assert len(res["visible_features"]) == 3
+    assert "Building Development:" in res["visible_features"][0]
+    assert res["spatial_pattern"] == "Changes are concentrated in central clusters."
+    assert res["interpretation"] == "Indicates urban expansion over previously undeveloped land."
+
+    formatted = res["formatted_text"]
+    assert formatted.index("OVERVIEW") < formatted.index("VISIBLE FEATURES")
+    assert formatted.index("VISIBLE FEATURES") < formatted.index("SPATIAL PATTERN")
+    assert formatted.index("SPATIAL PATTERN") < formatted.index("INTERPRETATION")
+

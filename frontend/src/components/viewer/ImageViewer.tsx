@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -7,11 +7,16 @@ import {
   RotateCcw,
   Download,
   Crosshair,
-  Sliders,
   Eye,
-  EyeOff
+  EyeOff,
+  Droplets,
+  Building2,
+  Radio,
+  Layers,
+  CloudUpload,
+  Paperclip
 } from 'lucide-react';
-import { DetectedRegion } from '../../types';
+import type { DetectedRegion } from '../../types';
 
 interface ImageViewerProps {
   imageUrl: string | null;
@@ -21,6 +26,9 @@ interface ImageViewerProps {
   title?: string;
   onSelectRegion?: (region: DetectedRegion | null) => void;
   selectedRegion?: DetectedRegion | null;
+  onUploadFile?: (file: File) => Promise<void>;
+  onSelectScenario?: (scenario: 'flood' | 'urban' | 'sar' | 'change') => void;
+  onDownloadDataset?: () => void;
 }
 
 export const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -28,19 +36,21 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   annotatedImageUrl,
   maskImageUrl,
   detections = [],
-  title = 'SATELLITE SCENE VIEWER',
+  title = 'Target Detection • "building" - WGS84 / UTM 2D GIS',
   onSelectRegion,
-  selectedRegion
+  selectedRegion,
+  onUploadFile,
+  onSelectScenario,
+  onDownloadDataset
 }) => {
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number }>({ x: 1002, y: 243 });
   const [showAnnotations, setShowAnnotations] = useState<boolean>(true);
-  const [showMasks, setShowMasks] = useState<boolean>(true);
-  const [maskOpacity, setMaskOpacity] = useState<number>(0.65);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,10 +72,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const handleMouseMove = (e: React.MouseEvent) => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const rawX = e.clientX - rect.left;
-      const rawY = e.clientY - rect.top;
-      // Convert to normalized / coordinate space
-      setCursorPos({ x: Math.round(rawX), y: Math.round(rawY) });
+      const rawX = Math.round(e.clientX - rect.left);
+      const rawY = Math.round(e.clientY - rect.top);
+      setCursorPos({ x: rawX, y: rawY });
     }
 
     if (isDragging) {
@@ -108,112 +117,79 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     a.click();
   };
 
+  // Drag & drop file upload on canvas
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && onUploadFile) {
+      await onUploadFile(file);
+    }
+  };
+
   const displayImage = showAnnotations && annotatedImageUrl ? annotatedImageUrl : imageUrl;
 
   return (
     <div
       ref={containerRef}
-      className="relative flex-1 bg-sat-darker gis-grid-bg flex flex-col overflow-hidden border-b border-sat-border select-none"
+      className={`relative flex-1 bg-sat-bg gis-grid-bg flex flex-col overflow-hidden select-none transition-colors ${
+        isDragOver ? 'ring-2 ring-sat-accent/50 bg-sat-panel/20' : ''
+      }`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
-      {/* Top Controls Toolbar */}
-      <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
-        {/* Left: Title & Coordinates */}
-        <div className="bg-sat-panel/90 backdrop-blur border border-sat-border px-3 py-1.5 rounded flex items-center space-x-3 pointer-events-auto">
-          <span className="text-xs font-mono font-bold text-sat-text tracking-wide">{title}</span>
-          {cursorPos && (
-            <div className="flex items-center space-x-1.5 text-[11px] font-mono text-sat-muted border-l border-sat-border pl-3">
-              <Crosshair className="w-3 h-3 text-sat-accent" />
-              <span>
-                X: <span className="text-sat-text">{cursorPos.x}</span> Y: <span className="text-sat-text">{cursorPos.y}</span>
-              </span>
-              <span className="text-sat-borderLight">|</span>
-              <span>
-                ZOOM: <span className="text-sat-accent font-bold">{(zoom * 100).toFixed(0)}%</span>
-              </span>
-            </div>
-          )}
+      {/* ================= TOP FLOATING BADGE & ACTIONS ================= */}
+      <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20">
+        {/* Left: Mode / Scene Status Pill */}
+        <div className="bg-sat-panel/90 backdrop-blur border border-sat-border px-3 py-1.5 rounded-full flex items-center space-x-2 pointer-events-auto shadow-md">
+          <span className="w-1.5 h-1.5 rounded-full bg-sat-accent" />
+          <span className="text-[11px] font-mono text-sat-textSecondary font-medium">
+            {title}
+          </span>
         </div>
 
-        {/* Right: Navigation & Layer Tools */}
-        <div className="bg-sat-panel/90 backdrop-blur border border-sat-border p-1 rounded flex items-center space-x-1 pointer-events-auto">
-          {/* Layer toggles if annotations exist */}
+        {/* Right: Quick Action / Dataset Download */}
+        <div className="bg-sat-panel/90 backdrop-blur border border-sat-border p-1 rounded-full flex items-center space-x-1 pointer-events-auto shadow-md">
           {annotatedImageUrl && (
-            <div className="flex items-center space-x-1 border-r border-sat-border pr-1 mr-1">
-              <button
-                onClick={() => setShowAnnotations(!showAnnotations)}
-                className={`p-1.5 rounded text-xs transition ${
-                  showAnnotations ? 'bg-sat-accent/20 text-sat-accent border border-sat-accent/40' : 'text-sat-muted hover:text-sat-text'
-                }`}
-                title={showAnnotations ? 'Hide Annotation Overlays' : 'Show Annotation Overlays'}
-              >
-                {showAnnotations ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-              </button>
-            </div>
+            <button
+              onClick={() => setShowAnnotations(!showAnnotations)}
+              className={`p-1.5 rounded-full text-xs transition ${
+                showAnnotations
+                  ? 'bg-sat-accent/20 text-sat-accent'
+                  : 'text-sat-muted hover:text-white'
+              }`}
+              title={showAnnotations ? 'Hide Annotation Overlays' : 'Show Annotation Overlays'}
+            >
+              {showAnnotations ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
           )}
 
-          {/* Zoom In */}
           <button
-            onClick={() => setZoom((prev) => Math.min(8.0, prev * 1.25))}
-            className="p-1.5 text-sat-muted hover:text-sat-text hover:bg-sat-surface rounded transition"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Zoom Out */}
-          <button
-            onClick={() => setZoom((prev) => Math.max(0.4, prev / 1.25))}
-            className="p-1.5 text-sat-muted hover:text-sat-text hover:bg-sat-surface rounded transition"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Reset View */}
-          <button
-            onClick={handleReset}
-            className="p-1.5 text-sat-muted hover:text-sat-text hover:bg-sat-surface rounded transition"
-            title="Reset Pan & Zoom (1:1)"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Fit to Screen */}
-          <button
-            onClick={handleFit}
-            className="px-2 py-1 text-[11px] font-mono text-sat-muted hover:text-sat-text hover:bg-sat-surface rounded transition"
-            title="Fit to Screen"
-          >
-            FIT
-          </button>
-
-          {/* Fullscreen */}
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 text-sat-muted hover:text-sat-text hover:bg-sat-surface rounded transition"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-
-          {/* Download */}
-          <button
-            onClick={handleDownload}
-            disabled={!displayImage}
-            className="p-1.5 text-sat-muted hover:text-sat-accent hover:bg-sat-surface rounded transition disabled:opacity-40"
-            title="Download Image"
+            onClick={onDownloadDataset || handleDownload}
+            className="p-1.5 text-sat-muted hover:text-white hover:bg-sat-surface rounded-full transition"
+            title="Download Scene / Dataset"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Main Imagery Canvas Area */}
+      {/* ================= MAIN IMAGERY CANVAS / EMPTY STATE ================= */}
       <div className="flex-1 flex items-center justify-center cursor-grab active:cursor-grabbing overflow-hidden">
         {displayImage ? (
           <div
@@ -221,7 +197,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transition: isDragging ? 'none' : 'transform 0.1s ease-out'
             }}
-            className="relative select-none shadow-2xl border border-sat-border"
+            className="relative select-none shadow-2xl rounded overflow-hidden"
           >
             <img
               src={displayImage}
@@ -230,11 +206,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               draggable={false}
             />
 
-            {/* Optional Interactive Bounding Box Polygon layer */}
+            {/* Polygon / Detection Overlay SVG */}
             {showAnnotations && detections.length > 0 && (
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 {detections.map((det) => {
-                  const [x1, y1, x2, y2] = det.bounding_box;
                   const isSelected = selectedRegion?.id === det.id;
                   return (
                     <g key={det.id}>
@@ -253,27 +228,158 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
             )}
           </div>
         ) : (
-          <div className="text-center p-8 border border-dashed border-sat-border rounded-lg bg-sat-panel/50 max-w-md">
-            <Crosshair className="w-10 h-10 text-sat-muted mx-auto mb-3 opacity-50" />
-            <h3 className="text-sm font-mono font-bold text-sat-text mb-1">NO SATELLITE SCENE LOADED</h3>
-            <p className="text-xs text-sat-muted">
-              Select a preloaded satellite sample from the sidebar or upload a GeoTIFF/PNG/JPG image to start analysis.
+          /* ================= EMPTY STATE: EARTH OBSERVATION STUDIO ================= */
+          <div className="max-w-xl w-full mx-4 bg-sat-panel/90 backdrop-blur border border-sat-border rounded-2xl p-6 sm:p-7 shadow-2xl flex flex-col items-center text-center select-none pointer-events-auto">
+            {/* Top Icon */}
+            <div className="w-9 h-9 rounded-full bg-sat-surface border border-sat-border flex items-center justify-center text-sat-muted mb-3.5">
+              <Paperclip className="w-4 h-4 text-sat-muted" />
+            </div>
+
+            {/* Title & Subtitle */}
+            <h2 className="text-base sm:text-lg font-semibold text-white font-sans mb-1.5">
+              Earth Observation Studio
+            </h2>
+            <p className="text-xs text-sat-muted leading-relaxed max-w-md mb-6 font-sans">
+              Drop high-resolution GeoTIFF, Cartosat, or Sentinel imagery directly onto this canvas, or launch a verified ISRO scenario benchmark below.
             </p>
+
+            {/* 2x2 Grid of Scenario Benchmark Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full mb-6">
+              {/* Card 1: Flood Inundation */}
+              <button
+                onClick={() => onSelectScenario?.('flood')}
+                className="bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight p-3.5 rounded-xl text-left flex items-center justify-between group transition active:scale-[0.98]"
+              >
+                <div>
+                  <h4 className="text-xs font-semibold text-white group-hover:text-sat-cyan transition">
+                    Flood Inundation
+                  </h4>
+                  <span className="text-[11px] text-sat-muted">
+                    Sentinel-2 NDWI waterlogging
+                  </span>
+                </div>
+                <div className="w-6 h-6 rounded-md bg-sat-cyan/10 flex items-center justify-center text-sat-cyan flex-shrink-0 ml-2">
+                  <Droplets className="w-3.5 h-3.5" />
+                </div>
+              </button>
+
+              {/* Card 2: Urban Structures */}
+              <button
+                onClick={() => onSelectScenario?.('urban')}
+                className="bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight p-3.5 rounded-xl text-left flex items-center justify-between group transition active:scale-[0.98]"
+              >
+                <div>
+                  <h4 className="text-xs font-semibold text-white group-hover:text-sat-warning transition">
+                    Urban Structures
+                  </h4>
+                  <span className="text-[11px] text-sat-muted">
+                    Cartosat-2S building footprints
+                  </span>
+                </div>
+                <div className="w-6 h-6 rounded-md bg-sat-warning/10 flex items-center justify-center text-sat-warning flex-shrink-0 ml-2">
+                  <Building2 className="w-3.5 h-3.5" />
+                </div>
+              </button>
+
+              {/* Card 3: Maritime Port SAR */}
+              <button
+                onClick={() => onSelectScenario?.('sar')}
+                className="bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight p-3.5 rounded-xl text-left flex items-center justify-between group transition active:scale-[0.98]"
+              >
+                <div>
+                  <h4 className="text-xs font-semibold text-white group-hover:text-sat-accent transition">
+                    Maritime Port SAR
+                  </h4>
+                  <span className="text-[11px] text-sat-muted">
+                    RISAT-1 C-band radar backscatter
+                  </span>
+                </div>
+                <div className="w-6 h-6 rounded-md bg-sat-accent/10 flex items-center justify-center text-sat-accent flex-shrink-0 ml-2">
+                  <Radio className="w-3.5 h-3.5" />
+                </div>
+              </button>
+
+              {/* Card 4: Bi-Temporal Growth */}
+              <button
+                onClick={() => onSelectScenario?.('change')}
+                className="bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight p-3.5 rounded-xl text-left flex items-center justify-between group transition active:scale-[0.98]"
+              >
+                <div>
+                  <h4 className="text-xs font-semibold text-white group-hover:text-purple-400 transition">
+                    Bi-Temporal Growth
+                  </h4>
+                  <span className="text-[11px] text-sat-muted">
+                    Multi-temporal surface change
+                  </span>
+                </div>
+                <div className="w-6 h-6 rounded-md bg-purple-500/10 flex items-center justify-center text-purple-400 flex-shrink-0 ml-2">
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+              </button>
+            </div>
+
+            {/* Bottom Drag Helper */}
+            <div className="flex items-center space-x-1.5 text-[11px] font-mono text-sat-muted">
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>Drag & drop GeoTIFF, TIFF, PNG, or JPG anywhere</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Bottom Status Reticle Coordinates bar */}
-      <div className="h-6 bg-sat-panel border-t border-sat-border flex items-center justify-between px-3 text-[10px] font-mono text-sat-muted z-10">
-        <div className="flex items-center space-x-3">
-          <span>CANVAS: 2D GIS VIEWPORT</span>
-          <span>•</span>
-          <span>PROJECTION: ORTHORECTIFIED WGS84 / UTM</span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <span>INTERACTION: PAN (DRAG) | ZOOM (WHEEL)</span>
-        </div>
+      {/* ================= BOTTOM FLOATING RETICLE & ZOOM CONTROLS ================= */}
+      {/* Bottom Left: Coordinates & Zoom HUD */}
+      <div className="absolute bottom-3 left-3 bg-sat-panel/90 backdrop-blur border border-sat-border px-3 py-1.5 rounded-full flex items-center space-x-2.5 text-[11px] font-mono text-sat-muted pointer-events-auto shadow-md z-20">
+        <Crosshair className="w-3 h-3 text-sat-muted" />
+        <span>
+          X: <span className="text-sat-text font-medium">{cursorPos.x}</span> Y:{' '}
+          <span className="text-sat-text font-medium">{cursorPos.y}</span>
+        </span>
+        <span className="text-sat-borderLight">|</span>
+        <span>
+          ZOOM: <span className="text-sat-text font-bold">{(zoom * 100).toFixed(0)}%</span>
+        </span>
+      </div>
+
+      {/* Bottom Right: Floating Canvas Controls HUD */}
+      <div className="absolute bottom-3 right-3 bg-sat-panel/90 backdrop-blur border border-sat-border p-1 rounded-full flex items-center space-x-1 pointer-events-auto shadow-md z-20">
+        {/* Zoom In */}
+        <button
+          onClick={() => setZoom((prev) => Math.min(8.0, prev * 1.25))}
+          className="p-1.5 text-sat-muted hover:text-white hover:bg-sat-surface rounded-full transition"
+          title="Zoom In"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Fit to Screen */}
+        <button
+          onClick={handleFit}
+          className="px-2 py-1 text-[10px] font-mono font-semibold text-sat-muted hover:text-white hover:bg-sat-surface rounded-full transition"
+          title="Fit to Canvas"
+        >
+          Fit
+        </button>
+
+        {/* Reset View */}
+        <button
+          onClick={handleReset}
+          className="p-1.5 text-sat-muted hover:text-white hover:bg-sat-surface rounded-full transition"
+          title="Reset Pan & Zoom"
+        >
+          <RotateCcw className="w-3 h-3" />
+        </button>
+
+        {/* Fullscreen */}
+        <button
+          onClick={toggleFullscreen}
+          className="p-1.5 text-sat-muted hover:text-white hover:bg-sat-surface rounded-full transition"
+          title="Toggle Fullscreen"
+        >
+          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+        </button>
       </div>
     </div>
   );
 };
+

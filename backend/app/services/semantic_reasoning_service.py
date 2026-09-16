@@ -7,9 +7,8 @@ alongside specialized computer vision models.
 from typing import Dict, Any, Tuple, Optional, List
 import numpy as np
 from PIL import Image
-from app.config import settings
 from app.models.model_manager import model_manager
-from app.services.gemini_service import gemini_service, normalize_structured_vqa
+from app.services.gemini_service import gemini_service, normalize_structured_vqa, normalize_structured_change
 from app.utils.logger import logger
 
 
@@ -205,9 +204,25 @@ class SemanticReasoningService:
             model_label = "ChangeMamba + GeoChat"
             sources = ["original_image", "ChangeMamba", "GeoChat"]
 
+        # Step 3: Final normalization into authoritative 4-part point-wise structure
+        norm_res = normalize_structured_change(
+            final_explanation,
+            change_percentage=change_percentage,
+            num_regions=num_regions,
+            verified_metrics=verified_metrics
+        )
+        final_explanation = norm_res["formatted_text"]
+        structured_analysis = {
+            "overview": norm_res["overview"],
+            "visible_features": norm_res["visible_features"],
+            "spatial_pattern": norm_res["spatial_pattern"],
+            "interpretation": norm_res["interpretation"]
+        }
+
         total_inf_ms = geochat_ms + gemini_ms
         return {
             "explanation": final_explanation,
+            "structured_analysis": structured_analysis,
             "geochat_observations": geochat_obs,
             "inference_time_ms": total_inf_ms,
             "geochat_time_ms": geochat_ms,
@@ -222,6 +237,7 @@ class SemanticReasoningService:
                 "Semantic reasoning is synthesized by Gemini with GeoChat domain observations."
             )
         }
+
 
     def explain_highlight(
         self,

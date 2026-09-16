@@ -150,6 +150,13 @@ export interface HighlightResponse {
   transparency_warning?: string;
 }
 
+export interface BiTemporalStructuredAnalysis {
+  overview: string;
+  visible_features: string[];
+  spatial_pattern: string;
+  interpretation: string;
+}
+
 export interface ChangeDetectionResponse {
   task: string;
   status: string;
@@ -175,6 +182,7 @@ export interface ChangeDetectionResponse {
   geo_metadata_t1?: GeoMetadata | null;
   geo_metadata_t2?: GeoMetadata | null;
   semantic_analysis: string;
+  structured_analysis?: BiTemporalStructuredAnalysis | null;
   geochat_observations?: string;
   execution_trace: ExecutionStage[];
   transparency_warning?: string;

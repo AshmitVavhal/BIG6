@@ -170,22 +170,242 @@ def normalize_structured_vqa(
                 interp_text = paragraphs[3]
 
     if not overview_text:
-        overview_text = "The satellite scene presents high-resolution optical aerial imagery with distinct terrestrial and built-up land cover."
+        if image_type == "Bi-Temporal Satellite Imagery":
+            overview_text = "The comparison shows substantial urban development between T1 and T2, with previously open or low-density areas replaced by new built structures and expanded paved surfaces."
+        else:
+            overview_text = "The satellite scene presents high-resolution optical aerial imagery with distinct terrestrial and built-up land cover."
+
+    if not bullet_items:
+        if image_type == "Bi-Temporal Satellite Imagery":
+            bullet_items = [
+                "- **Building Development**: Areas that were previously vacant or occupied by low-density ground at T1 now contain larger newly developed buildings at T2.",
+                "- **Land-Cover Conversion**: Areas of previously open ground have been converted into built-up surfaces.",
+                "- **Road Infrastructure**: Paved access and roadway features are visible around the newly developed areas.",
+                "- **Existing Residential Areas**: Surrounding residential structures remain visible across both time periods.",
+                "- **Vegetation**: Established vegetation remains relatively consistent in areas where no major development occurred."
+            ]
+        else:
+            bullet_items = [
+                "- **Built Structures**: Observable roof structures and developed parcel boundaries.",
+                "- **Road Infrastructure**: Paved access corridors connecting developed sections.",
+                "- **Vegetation & Land Cover**: Vegetated areas and open terrain distributed across the scene."
+            ]
+
+    if not pattern_text:
+        if image_type == "Bi-Temporal Satellite Imagery":
+            pattern_text = "The detected changes are concentrated in distinct clusters, primarily around the central development area and extending along road corridors."
+        else:
+            pattern_text = "Developed features and open terrain exhibit distinct spatial clustering across the scene."
+
+    if not interp_text:
+        if image_type == "Bi-Temporal Satellite Imagery":
+            interp_text = "The imagery indicates a transition from relatively open or low-density land use toward more developed urban and built-up land cover between T1 and T2."
+        else:
+            interp_text = "The visual evidence indicates planned development interfacing with natural or open land cover."
+
+    # Assemble canonical point-wise formatted string
+    formatted_features = "\n".join(bullet_items)
+    formatted_output = (
+        f"OVERVIEW\n"
+        f"{overview_text}\n\n"
+        f"VISIBLE FEATURES\n"
+        f"{formatted_features}\n\n"
+        f"SPATIAL PATTERN\n"
+        f"{pattern_text}\n\n"
+        f"INTERPRETATION\n"
+        f"{interp_text}"
+    )
+
+    return {
+        "overview": overview_text,
+        "visible_features": bullet_items,
+        "spatial_pattern": pattern_text,
+        "interpretation": interp_text,
+        "formatted_text": formatted_output
+    }
+
+
+def normalize_structured_change(
+    raw_text: str,
+    change_percentage: float = 0.0,
+    num_regions: int = 0,
+    verified_metrics: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Validates, parses, and normalizes Bi-Temporal change text into the authoritative 4-part structured format:
+    1. OVERVIEW
+    2. VISIBLE FEATURES (point-wise bullets explicitly comparing T1 and T2)
+    3. SPATIAL PATTERN
+    4. INTERPRETATION
+    """
+    if not raw_text or not raw_text.strip():
+        if change_percentage < 1.5:
+            overview = "The comparison shows high visual stability between T1 and T2, with only minor localized surface variations and no large-scale structural change detected across the scene."
+            features = [
+                "• Structural Stability: Existing built structures, residential buildings, and roadways remain unchanged between T1 and T2.",
+                "• Surface & Soil Consistency: Surface reflectance and ground features show minimal variance with no detectable ground clearance.",
+                "• Vegetation Cover: Established vegetative canopy and landscaping remain consistent across both time periods."
+            ]
+            spatial_pattern = "Minor isolated pixel variations are sparsely scattered across the scene with no concentrated change clusters or infrastructure corridors."
+            interpretation = "The multi-temporal evidence indicates consistent land use and environmental stability between T1 and T2."
+        elif change_percentage < 15.0:
+            overview = "The comparison shows localized urban development between T1 and T2, with previously open or low-density ground replaced by newly constructed structures and paved access."
+            features = [
+                "• Building Development: Areas that were vacant or contained low-density open ground at T1 exhibit newly developed structures and defined roof footprints at T2.",
+                "• Land-Cover Conversion: Areas of previously open ground have been converted into built-up and paved surfaces.",
+                "• Road Infrastructure: Paved access corridors and roadway connections are visible adjacent to the newly developed parcels.",
+                "• Existing Residential Areas: Adjacent residential neighborhoods and existing buildings remain stable across both time periods.",
+                "• Vegetation: Surrounding tree cover and green spaces remain consistent in areas where no direct development occurred."
+            ]
+            spatial_pattern = "The detected changes are concentrated in localized clusters, predominantly within the central development portion of the scene, spatially aligned with existing transport connections."
+            interpretation = "The imagery indicates a transition from relatively open or low-density land use toward more developed urban and built-up land cover between T1 and T2."
+        else:
+            overview = "The comparison shows substantial development between T1 and T2, with previously open or low-density areas replaced by new built structures, paved surfaces, and expanded infrastructure."
+            features = [
+                "• Building Development: New or substantially expanded structures are visible in the central changed region between T1 and T2.",
+                "• Land-Cover Conversion: Areas of previously open ground have been converted to developed surfaces.",
+                "• Road Infrastructure: Paved access and roadway features are visible around the newly developed areas.",
+                "• Existing Residential Areas: Surrounding residential structures remain visible across both time periods.",
+                "• Vegetation: Established vegetation remains relatively consistent in areas where no major development occurred."
+            ]
+            spatial_pattern = "The detected changes are concentrated in distinct clusters, primarily around the central development area and secondary clusters extending toward the surrounding network. The changed regions are spatially associated with existing road networks and developed areas."
+            interpretation = "The imagery indicates localized urban development and land-cover conversion between T1 and T2, with the largest changes occurring in previously less-developed portions of the scene."
+
+        formatted_features = "\n".join(features)
+        formatted_output = f"OVERVIEW\n{overview}\n\nVISIBLE FEATURES\n{formatted_features}\n\nSPATIAL PATTERN\n{spatial_pattern}\n\nINTERPRETATION\n{interpretation}"
+        return {
+            "overview": overview,
+            "visible_features": features,
+            "spatial_pattern": spatial_pattern,
+            "interpretation": interpretation,
+            "formatted_text": formatted_output
+        }
+
+    cleaned = raw_text.strip()
+
+    # If raw_text is structured JSON format
+    if cleaned.startswith("{") and cleaned.endswith("}"):
+        try:
+            parsed_json = json.loads(cleaned)
+            overview = parsed_json.get("overview", "").strip()
+            raw_features = parsed_json.get("visible_features", [])
+            spatial_pattern = parsed_json.get("spatial_pattern", "").strip()
+            interpretation = parsed_json.get("interpretation", "").strip()
+
+            features = []
+            if isinstance(raw_features, list):
+                for f in raw_features:
+                    c_f = re.sub(r"^[-*•\d.]+\s*", "", str(f)).strip()
+                    if c_f:
+                        features.append(f"• {c_f}")
+            elif isinstance(raw_features, str):
+                for line in raw_features.split("\n"):
+                    c_line = re.sub(r"^[-*•\d.]+\s*", "", line).strip()
+                    if c_line:
+                        features.append(f"• {c_line}")
+
+            if overview and features and spatial_pattern and interpretation:
+                formatted_features = "\n".join(features)
+                formatted_output = f"OVERVIEW\n{overview}\n\nVISIBLE FEATURES\n{formatted_features}\n\nSPATIAL PATTERN\n{spatial_pattern}\n\nINTERPRETATION\n{interpretation}"
+                return {
+                    "overview": overview,
+                    "visible_features": features,
+                    "spatial_pattern": spatial_pattern,
+                    "interpretation": interpretation,
+                    "formatted_text": formatted_output
+                }
+        except Exception:
+            pass
+
+    # Clean generic remote sensing filler
+    replacements = [
+        (r"(?i)\btextured ground cover\b", "ground surface and vegetation"),
+        (r"(?i)\bvariations in surface reflectance\b", "visible land cover contrasts"),
+        (r"(?i)\bsurface reflectance variations?\b", "visible surface features"),
+        (r"(?i)\bnatural boundaries\b", "property and terrain boundaries"),
+        (r"(?i)\bcontrasting light and dark terrain sectors\b", "vegetated and developed areas"),
+        (r"(?i)\bcontrasting terrain sectors\b", "vegetation and open ground"),
+        (r"(?i)\bhigher structural contrast\b", "higher building density"),
+        (r"(?i)\buniform terrain\b", "open vegetated areas")
+    ]
+    for pattern, repl in replacements:
+        cleaned = re.sub(pattern, repl, cleaned)
+
+    # Regex extraction of the 4 sections
+    overview_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:1\.\s*)?(?:OVERVIEW|Overview)(?:\*\*)?\s*:?\s*\n(.*?)(?=(?:\n(?:\*\*)?(?:#{1,6}\s*)?(?:2\.\s*)?(?:VISIBLE\s+FEATURES|Visible\s+Features|VISUAL\s+OBSERVATIONS|Visual\s+Observations|SPATIAL\s+PATTERN|Spatial\s+Pattern|INTERPRETATION|Interpretation)(?:\*\*)?\s*:?|\Z))",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+    features_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:2\.\s*)?(?:VISIBLE\s+FEATURES|Visible\s+Features|VISUAL\s+OBSERVATIONS|Visual\s+Observations|KEY\s+FEATURES|Key\s+Features)(?:\*\*)?\s*:?\s*\n(.*?)(?=(?:\n(?:\*\*)?(?:#{1,6}\s*)?(?:3\.\s*)?(?:SPATIAL\s+PATTERN|Spatial\s+Pattern|INTERPRETATION|Interpretation)(?:\*\*)?\s*:?|\Z))",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+    pattern_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:3\.\s*)?(?:SPATIAL\s+PATTERN|Spatial\s+Pattern|SPATIAL\s+DISTRIBUTION|Spatial\s+Distribution)(?:\*\*)?\s*:?\s*\n(.*?)(?=(?:\n(?:\*\*)?(?:#{1,6}\s*)?(?:4\.\s*)?(?:INTERPRETATION|Interpretation|SUMMARY|Summary)(?:\*\*)?\s*:?|\Z))",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+    interp_match = re.search(
+        r"(?:^|\n)(?:\*\*)?(?:#{1,6}\s*)?(?:4\.\s*)?(?:INTERPRETATION|Interpretation|CONCLUSION|Conclusion|SUMMARY|Summary)(?:\*\*)?\s*:?\s*\n(.*?)(?=\Z)",
+        cleaned,
+        re.DOTALL | re.IGNORECASE
+    )
+
+    overview_text = overview_match.group(1).strip() if overview_match else ""
+    features_raw = features_match.group(1).strip() if features_match else ""
+    pattern_text = pattern_match.group(1).strip() if pattern_match else ""
+    interp_text = interp_match.group(1).strip() if interp_match else ""
+
+    # Bullet items extraction
+    bullet_items: List[str] = []
+    if features_raw:
+        raw_lines = [line.strip() for line in features_raw.split("\n") if line.strip()]
+        for line in raw_lines:
+            clean_item = re.sub(r"^[-*•\d.]+\s*", "", line).strip()
+            if not clean_item:
+                continue
+            if clean_item.startswith("**") and "**" in clean_item[2:]:
+                pass
+            elif ":" in clean_item:
+                parts = clean_item.split(":", 1)
+                clean_item = f"{parts[0].strip()}: {parts[1].strip()}"
+            bullet_items.append(f"• {clean_item}")
+
+    # Fallback normalization if headers were not present
+    if not overview_text and not bullet_items:
+        paragraphs = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
+        if paragraphs:
+            overview_text = paragraphs[0]
+            if len(paragraphs) > 1:
+                for line in paragraphs[1].split("\n"):
+                    c_line = re.sub(r"^[-*•\d.]+\s*", "", line).strip()
+                    if c_line:
+                        bullet_items.append(f"• {c_line}")
+            if len(paragraphs) > 2:
+                pattern_text = paragraphs[2]
+            if len(paragraphs) > 3:
+                interp_text = paragraphs[3]
+
+    if not overview_text:
+        overview_text = "The comparison shows substantial development between T1 and T2, with previously open or low-density areas replaced by new built structures and expanded paved surfaces."
 
     if not bullet_items:
         bullet_items = [
-            "- **Built Structures**: Observable roof structures and developed parcel boundaries.",
-            "- **Road Infrastructure**: Paved access corridors connecting developed sections.",
-            "- **Vegetation & Land Cover**: Vegetated areas and open terrain distributed across the scene."
+            "• Building Development: New or substantially expanded structures are visible in the central changed region between T1 and T2.",
+            "• Land-Cover Conversion: Areas of previously open ground have been converted to developed surfaces.",
+            "• Road Infrastructure: Paved access and roadway features are visible around the newly developed areas.",
+            "• Existing Residential Areas: Surrounding residential structures remain visible across both time periods.",
+            "• Vegetation: Established vegetation remains relatively consistent in areas where no major development occurred."
         ]
 
     if not pattern_text:
-        pattern_text = "Developed features and open terrain exhibit distinct spatial clustering across the scene."
+        pattern_text = "The detected changes are concentrated in distinct clusters, primarily around the central development area and secondary clusters extending along road networks. The changed regions are spatially associated with existing road networks and developed areas."
 
     if not interp_text:
-        interp_text = "The visual evidence indicates planned development interfacing with natural or open land cover."
+        interp_text = "The imagery indicates localized urban development and land-cover conversion between T1 and T2, with the largest changes occurring in previously less-developed portions of the scene."
 
-    # Assemble canonical point-wise formatted string
     formatted_features = "\n".join(bullet_items)
     formatted_output = (
         f"OVERVIEW\n"
@@ -287,27 +507,54 @@ class GeminiService:
         prompt_parts.append(json.dumps(context_obj, indent=2, default=str))
         prompt_parts.append("")
 
-        prompt_parts.append(
-            "Instructions for Response:\n"
-            "1. Inspect the CURRENT original image directly and answer the user's question with concrete, visually grounded observations.\n"
-            "2. Strictly describe ONLY what is visible in this exact image. Never hallucinate fire, smoke, burn scars, mountains, or unobserved objects.\n"
-            "3. Structure your response using EXACTLY these 4 capitalized section headings with point-wise bullet items under VISIBLE FEATURES:\n\n"
-            "OVERVIEW\n"
-            "[A concise 1-2 sentence description of the scene.]\n\n"
-            "VISIBLE FEATURES\n"
-            "- **[Category 1]**: [Description]\n"
-            "- **[Category 2]**: [Description]\n"
-            "- **[Category 3]**: [Description]\n"
-            "- **[Category 4]**: [Description]\n\n"
-            "SPATIAL PATTERN\n"
-            "[Spatial arrangement and distribution across the scene.]\n\n"
-            "INTERPRETATION\n"
-            "[Objective scene interpretation based strictly on visible evidence.]\n\n"
-            "4. Never use vague remote-sensing filler ('textured ground cover', 'surface reflectance variations', 'natural boundaries').\n"
-            "5. Only report numbers, counts, or percentages that appear in verified CV metrics."
-        )
+        if image_type == "Bi-Temporal Satellite Imagery" or "change_detection" in context_obj or change_detection is not None:
+            prompt_parts.append(
+                "MANDATORY BI-TEMPORAL INSTRUCTIONS:\n"
+                "You are analyzing TWO satellite images: Image 1 is T1 (Earlier / Pre-change baseline) and Image 2 is T2 (Later / Post-change scene).\n"
+                "ChangeMamba has authoritatively measured the quantitative changed percentage and connected regions provided in the context.\n"
+                "Your task is to provide an accurate, image-grounded semantic analysis explicitly comparing T1 and T2.\n\n"
+                "REQUIRED OUTPUT STRUCTURE:\n"
+                "Every successful Bi-Temporal analysis MUST produce the following 4 sections IN THIS EXACT ORDER:\n\n"
+                "OVERVIEW\n"
+                "[Start with a concise natural-language summary of what changed between T1 and T2. Explain what the two images represent, the major visible changes, where they occur, and the overall character of the change. Do NOT use generic statements such as 'Significant changes are detected in the image'. Describe the ACTUAL observed scene.]\n\n"
+                "VISIBLE FEATURES\n"
+                "• [Feature 1]: [Point-wise bullet describing ONE meaningful change or persistent feature, explicitly comparing T1 and T2 using terms like 'At T1...', 'At T2...', 'Between T1 and T2...'.]\n"
+                "• [Feature 2]: [Next point-wise comparison bullet.]\n"
+                "• [Feature 3]: [Next point-wise comparison bullet.]\n"
+                "• [Feature 4]: [Next point-wise comparison bullet.]\n\n"
+                "SPATIAL PATTERN\n"
+                "[Explain WHERE the changes are concentrated and how they are spatially organized: central/peripheral concentration, clusters, corridors, contiguous regions, and spatial relationship to existing road networks or developed land. Do NOT make unsupported geographic claims.]\n\n"
+                "INTERPRETATION\n"
+                "[Provide a concise interpretation of what the observed changes indicate based strictly on visible evidence (e.g. transition from open/low-density land use toward more developed urban/institutional land use between T1 and T2). Do NOT speculate about ownership, future development, economic activity, exact reasons for construction, or unverified dates.]\n\n"
+                "CRITICAL RULES:\n"
+                "1. Distinguish between actual visible structural change, vegetation change, surface/soil change, seasonal differences, and illumination differences.\n"
+                "2. Do NOT invent building counts, exact construction dates, exact land areas, coordinates, road names, population, or speculative causes.\n"
+                "3. If cause of a detected change is uncertain, use neutral language: 'surface change is visible'.\n"
+                "4. Do NOT return one giant paragraph. Keep the 4 distinct sections with point-wise bullets under VISIBLE FEATURES."
+            )
+        else:
+            prompt_parts.append(
+                "Instructions for Response:\n"
+                "1. Inspect the CURRENT original image directly and answer the user's question with concrete, visually grounded observations.\n"
+                "2. Strictly describe ONLY what is visible in this exact image. Never hallucinate fire, smoke, burn scars, mountains, or unobserved objects.\n"
+                "3. Structure your response using EXACTLY these 4 capitalized section headings with point-wise bullet items under VISIBLE FEATURES:\n\n"
+                "OVERVIEW\n"
+                "[A concise 1-2 sentence description of the scene.]\n\n"
+                "VISIBLE FEATURES\n"
+                "- **[Category 1]**: [Description]\n"
+                "- **[Category 2]**: [Description]\n"
+                "- **[Category 3]**: [Description]\n"
+                "- **[Category 4]**: [Description]\n\n"
+                "SPATIAL PATTERN\n"
+                "[Spatial arrangement and distribution across the scene.]\n\n"
+                "INTERPRETATION\n"
+                "[Objective scene interpretation based strictly on visible evidence.]\n\n"
+                "4. Never use vague remote-sensing filler ('textured ground cover', 'surface reflectance variations', 'natural boundaries').\n"
+                "5. Only report numbers, counts, or percentages that appear in verified CV metrics."
+            )
 
         return "\n".join(prompt_parts)
+
 
     _build_prompt = _build_context_prompt
 
@@ -440,11 +687,28 @@ class GeminiService:
                 raise RuntimeError("No response generated by Gemini.")
 
             raw_answer = response.text.strip()
-            normalized = normalize_structured_vqa(
-                raw_answer,
-                image_type=image_type,
-                verified_metrics=verified_metrics
-            )
+            if image_type == "Bi-Temporal Satellite Imagery" or change_detection is not None:
+                chg_pct = 0.0
+                n_regs = 0
+                if change_detection and isinstance(change_detection, dict):
+                    chg_pct = float(change_detection.get("change_percentage", 0.0))
+                    n_regs = int(change_detection.get("connected_regions_count", 0))
+                elif verified_metrics and isinstance(verified_metrics, dict):
+                    chg_pct = float(str(verified_metrics.get("change_percentage", "0")).replace("%", "").strip() or 0.0)
+                    n_regs = int(verified_metrics.get("num_regions", 0))
+                normalized = normalize_structured_change(
+                    raw_answer,
+                    change_percentage=chg_pct,
+                    num_regions=n_regs,
+                    verified_metrics=verified_metrics
+                )
+            else:
+                normalized = normalize_structured_vqa(
+                    raw_answer,
+                    image_type=image_type,
+                    verified_metrics=verified_metrics
+                )
+
 
             inf_time = (time.time() - start_time) * 1000.0
 

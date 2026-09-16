@@ -3,7 +3,6 @@ import { TopNavbar } from './components/layout/TopNavbar';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { ImageViewer } from './components/viewer/ImageViewer';
 import { ComparisonViewer } from './components/viewer/ComparisonViewer';
-import { AnalysisResult } from './components/hud/AnalysisResult';
 import { BenchmarkModal } from './components/modals/BenchmarkModal';
 import { ExportReportModal } from './components/modals/ExportReportModal';
 
@@ -113,6 +112,15 @@ export const App: React.FC = () => {
         setOpticalImage(res.filename);
       } else if (targetSlot === 'sar') {
         setSarImage(res.filename);
+      } else {
+        // Fallback to active mode
+        if (currentMode === 'bitemporal') {
+          if (!t1Image) setT1Image(res.filename);
+          else setT2Image(res.filename);
+        } else if (currentMode === 'optical_sar') {
+          if (!opticalImage) setOpticalImage(res.filename);
+          else setSarImage(res.filename);
+        }
       }
     } catch (err: any) {
       showError(err.message || 'File upload failed.');
@@ -126,9 +134,47 @@ export const App: React.FC = () => {
     setTimeout(() => setErrorToast(null), 6000);
   };
 
+  // Scenario quick launcher from empty state
+  const handleSelectScenario = (scenario: 'flood' | 'urban' | 'sar' | 'change') => {
+    if (scenario === 'flood') {
+      setCurrentMode('vqa');
+      const sample = samples.find((s) => s.filename.toLowerCase().includes('flood')) || samples[0];
+      if (sample) setVqaImage(sample.filename);
+      setVqaQuestion('Describe the extent of flood inundation and major land-cover changes.');
+    } else if (scenario === 'urban') {
+      setCurrentMode('highlight');
+      setHighlightPrompt('building');
+      const sample = samples.find((s) => s.filename.toLowerCase().includes('urban') || s.filename.toLowerCase().includes('cartosat')) || samples[0];
+      if (sample) setHighlightImage(sample.filename);
+    } else if (scenario === 'sar') {
+      setCurrentMode('optical_sar');
+      setOpticalImage('optical.png');
+      setSarImage('sar.png');
+      setOpticalSarQuestion('Compare optical reflectance and SAR radar backscatter.');
+    } else if (scenario === 'change') {
+      setCurrentMode('bitemporal');
+      setT1Image('Bi_Temporal T1.png');
+      setT2Image('Bi_Temporal T2.png');
+    }
+  };
+
+  // Download test dataset
+  const handleDownloadDataset = () => {
+    const downloadUrl = 'https://drive.usercontent.google.com/download?id=1lwVLG62RdiPA4cNFfyzT36HZ-IZ44suY&export=download&confirm=t';
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', 'Dataset.zip');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Execution Handlers
   const handleRunVQA = async () => {
-    if (!vqaImage) return;
+    if (!vqaImage) {
+      showError('Please attach a satellite scene first.');
+      return;
+    }
     setIsProcessing(true);
     try {
       const res = await analyzeVQA(vqaImage, vqaQuestion, semanticModel);
@@ -141,7 +187,14 @@ export const App: React.FC = () => {
   };
 
   const handleRunHighlight = async () => {
-    if (!highlightImage || !highlightPrompt) return;
+    if (!highlightImage) {
+      showError('Please attach a satellite scene first.');
+      return;
+    }
+    if (!highlightPrompt) {
+      showError('Please provide an object prompt.');
+      return;
+    }
     setIsProcessing(true);
     try {
       const res = await analyzeHighlight(highlightImage, highlightPrompt, highlightThreshold, useMask2Former, semanticModel);
@@ -154,7 +207,10 @@ export const App: React.FC = () => {
   };
 
   const handleRunChange = async () => {
-    if (!t1Image || !t2Image) return;
+    if (!t1Image || !t2Image) {
+      showError('Please attach both T1 and T2 satellite scenes.');
+      return;
+    }
     setIsProcessing(true);
     try {
       const res = await analyzeChange(t1Image, t2Image, changeThreshold, true, semanticModel);
@@ -167,7 +223,10 @@ export const App: React.FC = () => {
   };
 
   const handleRunOpticalSar = async () => {
-    if (!opticalImage || !sarImage) return;
+    if (!opticalImage || !sarImage) {
+      showError('Please attach both Optical and SAR satellite images.');
+      return;
+    }
     setIsProcessing(true);
     try {
       const res = await analyzeOpticalSAR(opticalImage, sarImage, opticalSarQuestion, despeckleSar, semanticModel);
@@ -212,14 +271,14 @@ export const App: React.FC = () => {
 
       {/* Error Toast notification */}
       {errorToast && (
-        <div className="absolute top-16 right-6 max-w-md bg-sat-red text-sat-darker font-mono font-bold px-4 py-2.5 rounded shadow-2xl z-50 text-xs border border-white/20 animate-bounce">
+        <div className="absolute top-14 right-6 max-w-md bg-sat-red text-sat-darker font-mono font-bold px-4 py-2.5 rounded-lg shadow-2xl z-50 text-xs border border-white/20 animate-bounce">
           [ERROR]: {errorToast}
         </div>
       )}
 
       {/* Main Workstation Container */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Left Mission Feed Sidebar */}
         <Sidebar
           currentMode={currentMode}
           onSelectMode={setCurrentMode}
@@ -230,6 +289,7 @@ export const App: React.FC = () => {
           onSetVqaQuestion={setVqaQuestion}
           onSelectVqaImage={setVqaImage}
           onRunVQA={handleRunVQA}
+          vqaResult={vqaResult}
           // Highlight
           highlightImage={highlightImage}
           highlightPrompt={highlightPrompt}
@@ -240,6 +300,9 @@ export const App: React.FC = () => {
           useMask2Former={useMask2Former}
           onToggleMask2Former={setUseMask2Former}
           onRunHighlight={handleRunHighlight}
+          highlightResult={highlightResult}
+          selectedRegion={selectedRegion}
+          onSelectRegion={setSelectedRegion}
           // Bi-Temporal
           t1Image={t1Image}
           t2Image={t2Image}
@@ -248,6 +311,7 @@ export const App: React.FC = () => {
           changeThreshold={changeThreshold}
           onSetChangeThreshold={setChangeThreshold}
           onRunChange={handleRunChange}
+          changeResult={changeResult}
           // Optical + SAR
           opticalImage={opticalImage}
           sarImage={sarImage}
@@ -258,6 +322,7 @@ export const App: React.FC = () => {
           despeckleSar={despeckleSar}
           onToggleDespeckle={setDespeckleSar}
           onRunOpticalSar={handleRunOpticalSar}
+          opticalSarResult={opticalSarResult}
           // General
           onUploadFile={handleUploadFile}
           isProcessing={isProcessing}
@@ -266,72 +331,70 @@ export const App: React.FC = () => {
           onSetSemanticModel={setSemanticModel}
         />
 
-        {/* Center/Right Workspace Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Main GIS Viewport */}
-          <div className="flex-1 flex flex-col overflow-hidden relative">
-            {/* 1. VQA Viewport */}
-            {currentMode === 'vqa' && (
-              <ImageViewer
-                imageUrl={resolveImageUrl(vqaResult?.image_url || vqaImage)}
-                title="VQA SATELLITE CANVAS"
-              />
-            )}
+        {/* Center/Right Dominant Canvas Area */}
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* 1. VQA Viewport */}
+          {currentMode === 'vqa' && (
+            <ImageViewer
+              imageUrl={resolveImageUrl(vqaResult?.image_url || vqaImage)}
+              title={`VQA Intelligence • "${vqaQuestion.slice(0, 32)}..." - WGS84 / UTM 2D GIS`}
+              onUploadFile={handleUploadFile}
+              onSelectScenario={handleSelectScenario}
+              onDownloadDataset={handleDownloadDataset}
+            />
+          )}
 
-            {/* 2. Highlight Viewport */}
-            {currentMode === 'highlight' && (
-              <ImageViewer
-                imageUrl={resolveImageUrl(highlightResult?.original_image_url || highlightImage)}
-                annotatedImageUrl={resolveImageUrl(highlightResult?.annotated_image_url)}
-                maskImageUrl={resolveImageUrl(highlightResult?.mask_image_url)}
-                detections={highlightResult?.detections}
-                selectedRegion={selectedRegion}
-                onSelectRegion={setSelectedRegion}
-                title={`IMAGE HIGHLIGHT • [PROMPT: "${highlightPrompt}"]`}
-              />
-            )}
+          {/* 2. Highlight Viewport */}
+          {currentMode === 'highlight' && (
+            <ImageViewer
+              imageUrl={resolveImageUrl(highlightResult?.original_image_url || highlightImage)}
+              annotatedImageUrl={resolveImageUrl(highlightResult?.annotated_image_url)}
+              maskImageUrl={resolveImageUrl(highlightResult?.mask_image_url)}
+              detections={highlightResult?.detections}
+              selectedRegion={selectedRegion}
+              onSelectRegion={setSelectedRegion}
+              title={`Target Detection • "${highlightPrompt}" - WGS84 / UTM 2D GIS`}
+              onUploadFile={handleUploadFile}
+              onSelectScenario={handleSelectScenario}
+              onDownloadDataset={handleDownloadDataset}
+            />
+          )}
 
-            {/* 3. Bi-Temporal Change Viewport */}
-            {currentMode === 'bitemporal' && (
-              <ComparisonViewer
-                imageAUrl={resolveImageUrl(changeResult?.t1_image_url || t1Image)}
-                imageBUrl={resolveImageUrl(
-                  changeResult
-                    ? (changeResult.overlay_url || changeResult.t2_image_url)
-                    : t2Image
-                )}
-                labelA="T1 (PRE-CHANGE BASELINE)"
-                labelB="T2 (POST-CHANGE / OVERLAY)"
-                title="BI-TEMPORAL COMPARISON SUITE"
-              />
-            )}
+          {/* 3. Bi-Temporal Change Viewport */}
+          {currentMode === 'bitemporal' && (
+            <ComparisonViewer
+              imageAUrl={resolveImageUrl(changeResult?.t1_image_url || t1Image)}
+              imageBUrl={resolveImageUrl(
+                changeResult
+                  ? (changeResult.overlay_url || changeResult.t2_image_url)
+                  : t2Image
+              )}
+              labelA="T1 (PRE-CHANGE BASELINE)"
+              labelB="T2 (POST-CHANGE / OVERLAY)"
+              title="Bi-Temporal Change Suite • WGS84 / UTM 2D GIS"
+              onUploadFile={handleUploadFile}
+              onSelectScenario={handleSelectScenario}
+              scenarioType="change"
+            />
+          )}
 
-            {/* 4. Optical + SAR Fusion Viewport */}
-            {currentMode === 'optical_sar' && (
-              <ComparisonViewer
-                imageAUrl={resolveImageUrl(opticalSarResult?.optical_image_url || opticalImage)}
-                imageBUrl={resolveImageUrl(
-                  opticalSarResult
-                    ? (opticalSarResult.fused_image_url || opticalSarResult.sar_image_url)
-                    : sarImage
-                )}
-                labelA="OPTICAL RGB REFLECTANCE"
-                labelB="SAR / RADAR FUSED COMPOSITE"
-                title="OPTICAL + SAR CROSS-MODAL FUSION WORKSPACE"
-              />
-            )}
-          </div>
-
-          {/* Bottom Results & Analysis Panel */}
-          <AnalysisResult
-            mode={currentMode}
-            vqaResult={vqaResult}
-            highlightResult={highlightResult}
-            changeResult={changeResult}
-            opticalSarResult={opticalSarResult}
-            selectedRegion={selectedRegion}
-            onSelectRegion={setSelectedRegion}
-          />
+          {/* 4. Optical + SAR Fusion Viewport */}
+          {currentMode === 'optical_sar' && (
+            <ComparisonViewer
+              imageAUrl={resolveImageUrl(opticalSarResult?.optical_image_url || opticalImage)}
+              imageBUrl={resolveImageUrl(
+                opticalSarResult
+                  ? (opticalSarResult.fused_image_url || opticalSarResult.sar_image_url)
+                  : sarImage
+              )}
+              labelA="OPTICAL RGB REFLECTANCE"
+              labelB="SAR / RADAR FUSED COMPOSITE"
+              title="Optical + SAR Fusion Suite • WGS84 / UTM 2D GIS"
+              onUploadFile={handleUploadFile}
+              onSelectScenario={handleSelectScenario}
+              scenarioType="sar"
+            />
+          )}
         </div>
       </div>
 
@@ -348,3 +411,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+

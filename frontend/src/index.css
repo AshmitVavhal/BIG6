@@ -10,30 +10,28 @@
 
 /* Custom technical GIS scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #101010;
+  background: #090a0d;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #242424;
+  background: #1f242e;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333333;
+  background: #2b3240;
 }
 
-/* GIS Grid pattern for canvas backdrop */
+/* GIS Dot Grid pattern for canvas backdrop */
 .gis-grid-bg {
-  background-color: #000000;
-  background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-color: #090a0d;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 /* Scanline radar effect */
@@ -55,3 +53,4 @@
 .glow-cyan {
   box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
 }
+

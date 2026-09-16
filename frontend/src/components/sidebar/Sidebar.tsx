@@ -4,46 +4,66 @@ import {
   Sparkles,
   Layers,
   Radio,
-  Upload,
-  Play,
-  Cpu,
-  Zap,
-  AlertCircle,
-  Database
+  Paperclip,
+  ArrowRight,
+  Loader2,
+  Database,
+  Check,
+  Copy,
+  Upload
 } from 'lucide-react';
-import type { WorkspaceMode, SampleDataset, SemanticModelChoice } from '../../types';
+import type {
+  WorkspaceMode,
+  SampleDataset,
+  SemanticModelChoice,
+  VQAResponse,
+  HighlightResponse,
+  ChangeDetectionResponse,
+  OpticalSARResponse,
+  DetectedRegion
+} from '../../types';
+import { ConfidenceBadge } from '../hud/ConfidenceBadge';
+import { FormattedAnswer } from '../hud/FormattedAnswer';
+import { MetadataPanel } from '../hud/MetadataPanel';
+import { ExecutionTrace } from '../hud/ExecutionTrace';
+import { ModelTransparencyAlert } from '../hud/ModelTransparencyAlert';
 
 interface SidebarProps {
   currentMode: WorkspaceMode;
   onSelectMode: (mode: WorkspaceMode) => void;
-  samples: SampleDataset[];
+  samples?: SampleDataset[];
   // VQA state
-  vqaImage: string | null;
+  vqaImage?: string | null;
   vqaQuestion: string;
   onSetVqaQuestion: (q: string) => void;
-  onSelectVqaImage: (path: string) => void;
+  onSelectVqaImage?: (path: string) => void;
   onRunVQA: () => void;
+  vqaResult?: VQAResponse | null;
   // Highlight state
-  highlightImage: string | null;
+  highlightImage?: string | null;
   highlightPrompt: string;
   onSetHighlightPrompt: (p: string) => void;
-  onSelectHighlightImage: (path: string) => void;
+  onSelectHighlightImage?: (path: string) => void;
   highlightThreshold: number;
   onSetHighlightThreshold: (t: number) => void;
-  useMask2Former: boolean;
-  onToggleMask2Former: (v: boolean) => void;
+  useMask2Former?: boolean;
+  onToggleMask2Former?: (v: boolean) => void;
   onRunHighlight: () => void;
+  highlightResult?: HighlightResponse | null;
+  selectedRegion?: DetectedRegion | null;
+  onSelectRegion?: (region: DetectedRegion | null) => void;
   // Bi-Temporal state
-  t1Image: string | null;
-  t2Image: string | null;
+  t1Image?: string | null;
+  t2Image?: string | null;
   onSelectT1Image: (path: string) => void;
   onSelectT2Image: (path: string) => void;
   changeThreshold: number;
   onSetChangeThreshold: (t: number) => void;
   onRunChange: () => void;
+  changeResult?: ChangeDetectionResponse | null;
   // Optical + SAR state
-  opticalImage: string | null;
-  sarImage: string | null;
+  opticalImage?: string | null;
+  sarImage?: string | null;
   onSelectOpticalImage: (path: string) => void;
   onSelectSarImage: (path: string) => void;
   opticalSarQuestion: string;
@@ -51,32 +71,30 @@ interface SidebarProps {
   despeckleSar: boolean;
   onToggleDespeckle: (v: boolean) => void;
   onRunOpticalSar: () => void;
+  opticalSarResult?: OpticalSARResponse | null;
   // General upload
   onUploadFile: (file: File, targetSlot?: string) => Promise<void>;
   isProcessing: boolean;
   // Semantic reasoning selection
-  semanticModel: SemanticModelChoice;
-  onSetSemanticModel: (m: SemanticModelChoice) => void;
+  semanticModel?: SemanticModelChoice;
+  onSetSemanticModel?: (m: SemanticModelChoice) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentMode,
   onSelectMode,
-  samples,
-  vqaImage,
   vqaQuestion,
   onSetVqaQuestion,
-  onSelectVqaImage,
   onRunVQA,
-  highlightImage,
+  vqaResult,
   highlightPrompt,
   onSetHighlightPrompt,
-  onSelectHighlightImage,
   highlightThreshold,
   onSetHighlightThreshold,
-  useMask2Former,
-  onToggleMask2Former,
   onRunHighlight,
+  highlightResult,
+  selectedRegion,
+  onSelectRegion,
   t1Image,
   t2Image,
   onSelectT1Image,
@@ -84,6 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   changeThreshold,
   onSetChangeThreshold,
   onRunChange,
+  changeResult,
   opticalImage,
   sarImage,
   onSelectOpticalImage,
@@ -93,13 +112,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   despeckleSar,
   onToggleDespeckle,
   onRunOpticalSar,
+  opticalSarResult,
   onUploadFile,
-  isProcessing,
-  semanticModel,
-  onSetSemanticModel
+  isProcessing
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeUploadSlot = useRef<string>('default');
+  const [copied, setCopied] = React.useState<boolean>(false);
 
   const triggerUpload = (slot: string) => {
     activeUploadSlot.current = slot;
@@ -116,6 +135,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleDownloadDataset = () => {
     const downloadUrl = 'https://drive.usercontent.google.com/download?id=1lwVLG62RdiPA4cNFfyzT36HZ-IZ44suY&export=download&confirm=t';
     const link = document.createElement('a');
@@ -126,28 +151,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
     document.body.removeChild(link);
   };
 
-  const vqaSuggestions = [
-    'What is visible in this image?',
-    'Describe the major land-cover types.',
-    'Are there any buildings or structures?',
-    'Is there water or a drainage corridor?',
-    'Are there signs of construction?',
-    'Describe the vegetation cover.'
-  ];
+  const getDisplayFilename = (pathStr?: string | null, defaultText = 'Upload Image') => {
+    if (!pathStr) return defaultText;
+    const base = pathStr.split('/').pop()?.split('\\').pop() || pathStr;
+    return base;
+  };
 
-  const highlightSuggestions = [
-    'building',
-    'road',
-    'water body',
-    'vehicle',
-    'aircraft',
-    'ship',
-    'forest',
-    'solar panel'
-  ];
+  // Get active query text and trigger handler
+  const getQueryValue = () => {
+    if (currentMode === 'vqa') return vqaQuestion;
+    if (currentMode === 'highlight') return highlightPrompt;
+    if (currentMode === 'optical_sar') return opticalSarQuestion;
+    return '';
+  };
+
+  const setQueryValue = (val: string) => {
+    if (currentMode === 'vqa') onSetVqaQuestion(val);
+    else if (currentMode === 'highlight') onSetHighlightPrompt(val);
+    else if (currentMode === 'optical_sar') onSetOpticalSarQuestion(val);
+  };
+
+  const handlePrimaryExecute = () => {
+    if (isProcessing) return;
+    if (currentMode === 'vqa') onRunVQA();
+    else if (currentMode === 'highlight') onRunHighlight();
+    else if (currentMode === 'bitemporal') onRunChange();
+    else if (currentMode === 'optical_sar') onRunOpticalSar();
+  };
+
+  const hasActiveResult = Boolean(
+    (currentMode === 'vqa' && vqaResult) ||
+    (currentMode === 'highlight' && highlightResult) ||
+    (currentMode === 'bitemporal' && changeResult) ||
+    (currentMode === 'optical_sar' && opticalSarResult)
+  );
+
+  const turnCount = hasActiveResult ? 1 : 0;
+
+  // Prompt suggestions
+  const highlightPresets = ['building', 'road', 'water body', 'vehicle', 'aircraft', 'ship'];
 
   return (
-    <aside className="w-80 md:w-96 bg-sat-panel border-r border-sat-border flex flex-col h-[calc(100vh-3.5rem)] z-20 select-none">
+    <aside className="w-80 md:w-[340px] bg-sat-bg border-r border-sat-border flex flex-col h-[calc(100vh-3rem)] z-20 select-none">
       <input
         type="file"
         ref={fileInputRef}
@@ -156,232 +201,309 @@ export const Sidebar: React.FC<SidebarProps> = ({
         accept=".jpg,.jpeg,.png,.tif,.tiff,.geotiff"
       />
 
-      {/* Mode Navigation Tabs */}
-      <div className="grid grid-cols-2 p-2 gap-1.5 border-b border-sat-border bg-sat-darker">
-        <button
-          onClick={() => onSelectMode('vqa')}
-          className={`flex items-center space-x-1.5 px-3 py-2 rounded text-xs font-mono font-medium transition ${
-            currentMode === 'vqa'
-              ? 'bg-sat-accent text-sat-darker font-bold shadow'
-              : 'bg-sat-surface text-sat-muted hover:text-sat-text hover:bg-sat-surface/80 border border-sat-border'
-          }`}
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span>VQA</span>
-        </button>
+      {/* Top Header: Mission Feed & Item Counter */}
+      <div className="h-10 px-3.5 border-b border-sat-border flex items-center justify-between bg-sat-bg/80">
+        <div className="flex items-center space-x-2">
+          <span className="font-semibold text-xs text-white font-sans">Mission Feed</span>
+          <span className="text-[10px] bg-sat-panel text-sat-muted px-2 py-0.5 rounded-full border border-sat-border font-mono">
+            {turnCount} turns
+          </span>
+        </div>
 
         <button
-          onClick={() => onSelectMode('highlight')}
-          className={`flex items-center space-x-1.5 px-3 py-2 rounded text-xs font-mono font-medium transition ${
-            currentMode === 'highlight'
-              ? 'bg-sat-accent text-sat-darker font-bold shadow'
-              : 'bg-sat-surface text-sat-muted hover:text-sat-text hover:bg-sat-surface/80 border border-sat-border'
-          }`}
+          onClick={handleDownloadDataset}
+          className="flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-mono text-sat-muted hover:text-white hover:bg-sat-panel transition"
+          title="Download verified satellite benchmark dataset"
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>HIGHLIGHT</span>
-        </button>
-
-        <button
-          onClick={() => onSelectMode('bitemporal')}
-          className={`flex items-center space-x-1.5 px-3 py-2 rounded text-xs font-mono font-medium transition ${
-            currentMode === 'bitemporal'
-              ? 'bg-sat-accent text-sat-darker font-bold shadow'
-              : 'bg-sat-surface text-sat-muted hover:text-sat-text hover:bg-sat-surface/80 border border-sat-border'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>BI-TEMPORAL</span>
-        </button>
-
-        <button
-          onClick={() => onSelectMode('optical_sar')}
-          className={`flex items-center space-x-1.5 px-3 py-2 rounded text-xs font-mono font-medium transition ${
-            currentMode === 'optical_sar'
-              ? 'bg-sat-accent text-sat-darker font-bold shadow'
-              : 'bg-sat-surface text-sat-muted hover:text-sat-text hover:bg-sat-surface/80 border border-sat-border'
-          }`}
-        >
-          <Radio className="w-3.5 h-3.5" />
-          <span>OPTICAL+SAR</span>
+          <Database className="w-3 h-3 text-sat-accent" />
+          <span>Dataset</span>
         </button>
       </div>
 
-      {/* Mode Content Scrollable Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Dataset Action */}
-        <button
-          onClick={handleDownloadDataset}
-          className="w-full flex items-center justify-center space-x-2 py-2 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-sat-border hover:border-sat-accent/60 rounded text-xs font-mono text-sat-text transition"
-          title="Download satellite test dataset"
-        >
-          <Database className="w-3.5 h-3.5 text-sat-accent" />
-          <span>Dataset</span>
-        </button>
-
-        {/* =========================================================================
-            1. VQA WORKSPACE SIDEBAR
-           ========================================================================= */}
-        {currentMode === 'vqa' && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted flex items-center justify-between">
-                <span>INPUT SATELLITE IMAGE</span>
-                <span className="text-[10px] text-sat-accent">JPG, PNG, GeoTIFF</span>
-              </label>
-
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => triggerUpload('vqa')}
-                  className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-dashed border-sat-borderLight hover:border-sat-accent rounded text-xs font-mono text-sat-text transition"
-                >
-                  <Upload className="w-3.5 h-3.5 text-sat-accent" />
-                  <span>{vqaImage ? vqaImage.split('_').slice(-1)[0] : 'Upload Satellite File'}</span>
-                </button>
-              </div>
-
-              {/* Sample Selector */}
-              {samples.length > 0 && (
-                <div className="mt-2">
-                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {samples.map((s) => (
-                      <button
-                        key={s.filename}
-                        onClick={() => onSelectVqaImage(s.filename)}
-                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
-                          vqaImage === s.filename
-                            ? 'bg-sat-accent/20 border-sat-accent text-sat-accent'
-                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
-                        }`}
-                      >
-                        {s.filename.replace('.png', '').replace('.tif', '')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {/* Middle Scrollable Body: Mission Intelligence Results or Empty State */}
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+        {/* ==================== 1. EMPTY STATE ==================== */}
+        {!hasActiveResult && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 py-8">
+            <div className="w-12 h-12 rounded-full border border-sat-border bg-sat-panel/80 flex items-center justify-center text-sat-muted mb-4">
+              <Radio className="w-5 h-5 text-sat-accent animate-pulse" />
             </div>
-
-            {/* Query Input */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted">QUESTION / QUERY</label>
-              <textarea
-                value={vqaQuestion}
-                onChange={(e) => onSetVqaQuestion(e.target.value)}
-                rows={3}
-                placeholder="Ask about terrain, land-cover, buildings, water, roads..."
-                className="w-full bg-sat-darker border border-sat-border focus:border-sat-accent rounded p-2.5 text-xs font-sans text-sat-text placeholder-sat-muted/50 focus:outline-none resize-none"
-              />
-
-              {/* Suggested Questions */}
-              <div className="space-y-1 pt-1">
-                <span className="text-[10px] font-mono text-sat-muted">SUGGESTED QUERIES:</span>
-                <div className="space-y-1">
-                  {vqaSuggestions.map((q, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => onSetVqaQuestion(q)}
-                      className="w-full text-left text-[11px] p-1.5 rounded bg-sat-surface hover:bg-sat-surface/80 border border-sat-border text-sat-text truncate transition"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Run Button */}
-            <button
-              onClick={onRunVQA}
-              disabled={isProcessing || !vqaImage}
-              className={`w-full py-2.5 px-4 rounded font-mono font-bold text-xs flex items-center justify-center space-x-2 transition shadow ${
-                isProcessing || !vqaImage
-                  ? 'bg-sat-surface text-sat-muted cursor-not-allowed border border-sat-border'
-                  : 'bg-sat-accent hover:bg-sat-accentHover text-sat-darker'
-              }`}
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>{isProcessing ? 'RUNNING INFERENCE...' : 'RUN VQA REASONING'}</span>
-            </button>
+            <h3 className="font-semibold text-sm text-white mb-1.5 font-sans">
+              SatQuery Mission Intelligence
+            </h3>
+            <p className="text-xs text-sat-muted leading-relaxed max-w-[240px]">
+              Select an operational mode below, ask a question, or launch a scenario from the canvas.
+            </p>
           </div>
         )}
 
-        {/* =========================================================================
-            2. IMAGE HIGHLIGHT WORKSPACE SIDEBAR
-           ========================================================================= */}
-        {currentMode === 'highlight' && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted flex items-center justify-between">
-                <span>TARGET SATELLITE IMAGE</span>
-                <span className="text-[10px] text-sat-accent">Object & Region Mask</span>
-              </label>
-
-              <button
-                onClick={() => triggerUpload('highlight')}
-                className="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-dashed border-sat-borderLight hover:border-sat-accent rounded text-xs font-mono text-sat-text transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-sat-accent" />
-                <span>{highlightImage ? highlightImage.split('_').slice(-1)[0] : 'Upload Satellite File'}</span>
-              </button>
-
-              {/* Sample Selector */}
-              {samples.length > 0 && (
-                <div className="mt-2">
-                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {samples.map((s) => (
-                      <button
-                        key={s.filename}
-                        onClick={() => onSelectHighlightImage(s.filename)}
-                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
-                          highlightImage === s.filename
-                            ? 'bg-sat-accent/20 border-sat-accent text-sat-accent'
-                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
-                        }`}
-                      >
-                        {s.filename.replace('.png', '').replace('.tif', '')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Object Prompt */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted">OBJECT DETECTION PROMPT</label>
-              <input
-                type="text"
-                value={highlightPrompt}
-                onChange={(e) => onSetHighlightPrompt(e.target.value)}
-                placeholder="e.g. building, road, water, vehicle..."
-                className="w-full bg-sat-darker border border-sat-border focus:border-sat-accent rounded p-2.5 text-xs font-sans text-sat-text focus:outline-none"
-              />
-
-              {/* Suggested Prompts */}
-              <div className="pt-1">
-                <span className="text-[10px] font-mono text-sat-muted block mb-1">PROMPT PRESETS:</span>
-                <div className="flex flex-wrap gap-1">
-                  {highlightSuggestions.map((p, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => onSetHighlightPrompt(p)}
-                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-sat-surface hover:bg-sat-surface/80 border border-sat-border text-sat-text transition"
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
+        {/* ==================== 2. VQA RESULTS ==================== */}
+        {currentMode === 'vqa' && vqaResult && (
+          <div className="space-y-3 font-sans">
+            <div className="flex items-center justify-between border-b border-sat-border pb-2">
+              <span className="text-[11px] font-mono font-semibold text-sat-accent uppercase tracking-wider">
+                VQA Intelligence Response
+              </span>
+              <div className="flex items-center space-x-1.5">
+                <ConfidenceBadge
+                  confidence={vqaResult.confidence}
+                  confidenceType={vqaResult.confidence_type}
+                />
+                <button
+                  onClick={() => handleCopy(vqaResult.answer)}
+                  className="p-1 hover:bg-sat-surface rounded text-sat-muted hover:text-white transition"
+                  title="Copy Answer"
+                >
+                  {copied ? <Check className="w-3 h-3 text-sat-accent" /> : <Copy className="w-3 h-3" />}
+                </button>
               </div>
             </div>
 
-            {/* Detection Threshold & Mask2Former Toggle */}
-            <div className="space-y-3 bg-sat-darker p-3 rounded border border-sat-border">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-mono">
-                  <span className="text-sat-muted">Detection Confidence Threshold:</span>
+            {/* Query Pill */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border text-xs">
+              <span className="text-[10px] font-mono text-sat-muted block mb-0.5">QUERY</span>
+              <p className="text-white font-medium">{vqaResult.question}</p>
+            </div>
+
+            {/* Formatted VQA Answer */}
+            <div className="bg-sat-panel p-3 rounded-lg border border-sat-border">
+              <FormattedAnswer text={vqaResult.answer} />
+            </div>
+
+            {vqaResult.transparency_warning && (
+              <ModelTransparencyAlert warning={vqaResult.transparency_warning} />
+            )}
+
+            {vqaResult.geo_metadata && <MetadataPanel metadata={vqaResult.geo_metadata} />}
+            <ExecutionTrace stages={vqaResult.execution_trace} totalTimeMs={vqaResult.processing_time_ms} />
+          </div>
+        )}
+
+        {/* ==================== 3. DETECTION RESULTS ==================== */}
+        {currentMode === 'highlight' && highlightResult && (
+          <div className="space-y-3 font-sans">
+            <div className="flex items-center justify-between border-b border-sat-border pb-2">
+              <span className="text-[11px] font-mono font-semibold text-sat-accent uppercase tracking-wider">
+                Detection Metrics
+              </span>
+              <ConfidenceBadge
+                confidence={
+                  highlightResult.detections.length > 0
+                    ? highlightResult.detections[0].confidence
+                    : 0.85
+                }
+                confidenceType="model"
+              />
+            </div>
+
+            {/* Key Metrics Grid */}
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="bg-sat-panel p-2 rounded-lg border border-sat-border">
+                <span className="text-[10px] text-sat-muted block">INSTANCES</span>
+                <span className="text-base font-bold text-white">{highlightResult.num_detections}</span>
+              </div>
+              <div className="bg-sat-panel p-2 rounded-lg border border-sat-border">
+                <span className="text-[10px] text-sat-muted block">AREA %</span>
+                <span className="text-base font-bold text-sat-accent">{highlightResult.total_area_percentage}%</span>
+              </div>
+            </div>
+
+            {/* Semantic Summary */}
+            {highlightResult.semantic_summary && (
+              <div className="bg-sat-panel p-3 rounded-lg border border-sat-border">
+                <FormattedAnswer text={highlightResult.semantic_summary} />
+              </div>
+            )}
+
+            {/* Detection Table */}
+            {highlightResult.detections.length > 0 && (
+              <div className="bg-sat-panel rounded-lg border border-sat-border overflow-hidden text-xs font-mono">
+                <div className="px-2.5 py-1.5 bg-sat-surface border-b border-sat-border text-[10px] text-sat-muted font-bold flex justify-between">
+                  <span>DETECTED OBJECTS ({highlightResult.detections.length})</span>
+                  <span className="text-[9px]">CLICK TO FOCUS</span>
+                </div>
+                <div className="max-h-36 overflow-y-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <tbody className="divide-y divide-sat-border">
+                      {highlightResult.detections.map((d) => (
+                        <tr
+                          key={d.id}
+                          onClick={() => onSelectRegion?.(d)}
+                          className={`hover:bg-sat-surface cursor-pointer transition ${
+                            selectedRegion?.id === d.id ? 'bg-sat-accentDim text-sat-accent' : 'text-sat-text'
+                          }`}
+                        >
+                          <td className="p-1.5 font-bold">#{d.id}</td>
+                          <td className="p-1.5 uppercase">{d.label}</td>
+                          <td className="p-1.5">{(d.confidence * 100).toFixed(0)}%</td>
+                          <td className="p-1.5 text-sat-muted">{d.area_pixels.toLocaleString()}px</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {highlightResult.geo_metadata && <MetadataPanel metadata={highlightResult.geo_metadata} />}
+            <ExecutionTrace stages={highlightResult.execution_trace} totalTimeMs={highlightResult.processing_time_ms} />
+          </div>
+        )}
+
+        {/* ==================== 4. BI-TEMPORAL CHANGE RESULTS ==================== */}
+        {currentMode === 'bitemporal' && changeResult && (
+          <div className="space-y-3 font-sans">
+            <div className="flex items-center justify-between border-b border-sat-border pb-2">
+              <span className="text-[11px] font-mono font-semibold text-sat-accent uppercase tracking-wider">
+                Bi-Temporal Change Analysis
+              </span>
+              <ConfidenceBadge confidence={0.91} confidenceType="model" />
+            </div>
+
+            {/* Change Metrics */}
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="bg-sat-panel p-2 rounded-lg border border-sat-border">
+                <span className="text-[10px] text-sat-muted block">TOTAL CHANGE</span>
+                <span className="text-base font-bold text-sat-warning">{changeResult.change_percentage}%</span>
+              </div>
+              <div className="bg-sat-panel p-2 rounded-lg border border-sat-border">
+                <span className="text-[10px] text-sat-muted block">REGIONS</span>
+                <span className="text-base font-bold text-white">{changeResult.num_regions}</span>
+              </div>
+            </div>
+
+            {/* Semantic Interpretation */}
+            <div className="bg-sat-panel p-3 rounded-lg border border-sat-border">
+              <FormattedAnswer text={changeResult.semantic_analysis} />
+            </div>
+
+            {/* Changed Regions Table */}
+            {changeResult.regions.length > 0 && (
+              <div className="bg-sat-panel rounded-lg border border-sat-border overflow-hidden text-xs font-mono">
+                <div className="px-2.5 py-1.5 bg-sat-surface border-b border-sat-border text-[10px] text-sat-muted font-bold">
+                  CONNECTED COMPONENTS ({changeResult.regions.length})
+                </div>
+                <div className="max-h-36 overflow-y-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <tbody className="divide-y divide-sat-border">
+                      {changeResult.regions.slice(0, 15).map((r) => (
+                        <tr key={r.region_id} className="hover:bg-sat-surface text-sat-text">
+                          <td className="p-1.5 font-bold">#{r.region_id}</td>
+                          <td className="p-1.5">{r.area_pixels.toLocaleString()}px</td>
+                          <td className="p-1.5 text-sat-muted">{(r.confidence * 100).toFixed(0)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <ExecutionTrace stages={changeResult.execution_trace} totalTimeMs={changeResult.processing_time_ms} />
+          </div>
+        )}
+
+        {/* ==================== 5. OPTICAL + SAR RESULTS ==================== */}
+        {currentMode === 'optical_sar' && opticalSarResult && (
+          <div className="space-y-3 font-sans">
+            <div className="flex items-center justify-between border-b border-sat-border pb-2">
+              <span className="text-[11px] font-mono font-semibold text-sat-cyan uppercase tracking-wider">
+                Cross-Modal Fusion Result
+              </span>
+              <ConfidenceBadge confidence={0.93} confidenceType="model" />
+            </div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="bg-sat-panel p-2 rounded-lg border border-sat-border">
+                <span className="text-[10px] text-sat-muted block">SAR DYNAMIC RANGE</span>
+                <span className="text-base font-bold text-sat-cyan">{opticalSarResult.sar_stats.dynamic_range_db} dB</span>
+              </div>
+              <div className="bg-sat-panel p-2 rounded-lg border border-sat-border">
+                <span className="text-[10px] text-sat-muted block">HIGH-BACKSCATTER</span>
+                <span className="text-base font-bold text-sat-warning">
+                  {((opticalSarResult.sar_stats.high_backscatter_ratio ?? 0) * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Cross-modal text */}
+            <div className="bg-sat-panel p-3 rounded-lg border border-sat-border text-xs text-sat-text leading-relaxed whitespace-pre-line">
+              {opticalSarResult.cross_modal_analysis}
+            </div>
+
+            <ExecutionTrace stages={opticalSarResult.execution_trace} totalTimeMs={opticalSarResult.processing_time_ms} />
+          </div>
+        )}
+      </div>
+
+      {/* ==================== BOTTOM CONTROL DOCK ==================== */}
+      <div className="p-3 border-t border-sat-border bg-sat-bg space-y-2.5">
+        {/* Module Switcher Pill Bar (Reference Design) */}
+        <div className="flex items-center justify-between bg-sat-panel p-1 rounded-lg border border-sat-border">
+          {/* VQA Tab */}
+          <button
+            onClick={() => onSelectMode('vqa')}
+            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
+              currentMode === 'vqa'
+                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                : 'text-sat-muted hover:text-white'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>VQA</span>
+          </button>
+
+          {/* Detect Tab */}
+          <button
+            onClick={() => onSelectMode('highlight')}
+            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
+              currentMode === 'highlight'
+                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                : 'text-sat-muted hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Detect</span>
+          </button>
+
+          {/* Change Tab */}
+          <button
+            onClick={() => onSelectMode('bitemporal')}
+            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
+              currentMode === 'bitemporal'
+                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                : 'text-sat-muted hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Change</span>
+          </button>
+
+          {/* SAR Tab */}
+          <button
+            onClick={() => onSelectMode('optical_sar')}
+            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
+              currentMode === 'optical_sar'
+                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                : 'text-sat-muted hover:text-white'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span>SAR</span>
+          </button>
+        </div>
+
+        {/* =========================================================================
+            1. VQA & DETECT CONTROLS
+           ========================================================================= */}
+        {(currentMode === 'vqa' || currentMode === 'highlight') && (
+          <>
+            {/* Detection Sensitivity Slider (Detect mode only) */}
+            {currentMode === 'highlight' && (
+              <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-1 text-xs">
+                <div className="flex justify-between text-[11px] font-mono mb-1">
+                  <span className="text-sat-muted">Sensitivity:</span>
                   <span className="text-sat-accent font-bold">{(highlightThreshold * 100).toFixed(0)}%</span>
                 </div>
                 <input
@@ -391,136 +513,177 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   step="0.05"
                   value={highlightThreshold}
                   onChange={(e) => onSetHighlightThreshold(parseFloat(e.target.value))}
-                  className="w-full accent-sat-accent"
+                  className="w-full accent-sat-accent h-1 bg-sat-surface rounded"
                 />
               </div>
+            )}
 
-              <label className="flex items-center space-x-2 text-xs font-mono text-sat-text cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useMask2Former}
-                  onChange={(e) => onToggleMask2Former(e.target.checked)}
-                  className="accent-sat-accent"
-                />
-                <span>Enable Polygon Mask Refinement</span>
-              </label>
+            {/* Attach Scene & Preset Chips */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  if (currentMode === 'vqa') triggerUpload('vqa');
+                  else if (currentMode === 'highlight') triggerUpload('highlight');
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-sat-panel hover:bg-sat-surface border border-sat-border hover:border-sat-borderLight rounded-full text-xs text-sat-textSecondary hover:text-white transition"
+              >
+                <Paperclip className="w-3.5 h-3.5 text-sat-muted" />
+                <span>Attach Scene</span>
+              </button>
+
+              {/* Quick preset chips */}
+              <div className="flex-1 flex items-center space-x-1 overflow-x-auto no-scrollbar">
+                {currentMode === 'highlight' && (
+                  highlightPresets.slice(0, 3).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => onSetHighlightPrompt(p)}
+                      className="px-2 py-1 rounded-full bg-sat-panel hover:bg-sat-surface border border-sat-border text-[10px] text-sat-muted hover:text-white whitespace-nowrap transition"
+                    >
+                      {p}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
 
-            {/* Run Button */}
-            <button
-              onClick={onRunHighlight}
-              disabled={isProcessing || !highlightImage || !highlightPrompt}
-              className={`w-full py-2.5 px-4 rounded font-mono font-bold text-xs flex items-center justify-center space-x-2 transition shadow ${
-                isProcessing || !highlightImage || !highlightPrompt
-                  ? 'bg-sat-surface text-sat-muted cursor-not-allowed border border-sat-border'
-                  : 'bg-sat-accent hover:bg-sat-accentHover text-sat-darker'
-              }`}
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>{isProcessing ? 'DETECTING & SEGMENTING...' : 'RUN HIGHLIGHT PIPELINE'}</span>
-            </button>
-          </div>
+            {/* Command / Query Input with Circular Arrow Button */}
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                value={getQueryValue()}
+                onChange={(e) => setQueryValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handlePrimaryExecute();
+                }}
+                placeholder={
+                  currentMode === 'vqa'
+                    ? 'What is visible in this image?'
+                    : 'building, road, water body...'
+                }
+                className="w-full bg-sat-panel border border-sat-border focus:border-sat-borderLight rounded-full py-2.5 pl-3.5 pr-11 text-xs text-white placeholder-sat-muted focus:outline-none transition shadow-inner font-sans"
+              />
+
+              <button
+                onClick={handlePrimaryExecute}
+                disabled={isProcessing}
+                className="absolute right-1.5 w-7 h-7 rounded-full bg-white hover:bg-slate-200 text-slate-900 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed shadow"
+                title="Execute Analysis"
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-900" />
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+              </button>
+            </div>
+          </>
         )}
 
         {/* =========================================================================
-            3. BI-TEMPORAL CHANGE SIDEBAR
+            2. BI-TEMPORAL MODULE CONTROLS (TWO SEPARATE INDEPENDENT UPLOADS)
            ========================================================================= */}
         {currentMode === 'bitemporal' && (
-          <div className="space-y-4">
-            {/* T1 Before Upload */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted flex items-center justify-between">
-                <span>T1 / PRE-CHANGE BASELINE</span>
-                <span className="text-[10px] text-sat-accent">Earlier Date</span>
-              </label>
-              <button
-                onClick={() => triggerUpload('t1')}
-                className="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-dashed border-sat-borderLight hover:border-sat-accent rounded text-xs font-mono text-sat-text transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-sat-accent" />
-                <span>{t1Image ? t1Image.split('_').slice(-1)[0] : 'Upload T1 (Before)'}</span>
-              </button>
-
-              {/* Sample Selector for T1 */}
-              {samples.length > 0 && (
-                <div className="mt-1">
-                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {samples.map((s) => (
-                      <button
-                        key={s.filename}
-                        onClick={() => onSelectT1Image(s.filename)}
-                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
-                          t1Image === s.filename
-                            ? 'bg-sat-accent/20 border-sat-accent text-sat-accent'
-                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
-                        }`}
-                      >
-                        {s.filename.replace('.png', '').replace('.tif', '')}
-                      </button>
-                    ))}
-                  </div>
+          <div className="space-y-2.5">
+            {/* T1 Box: Earlier / Pre-Change */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono">
+                <div>
+                  <span className="font-semibold text-sat-text block">T1 — EARLIER / PRE-CHANGE</span>
+                  <span className="text-sat-muted text-[9px]">Earlier / Pre-change image</span>
                 </div>
-              )}
-            </div>
-
-            {/* T2 After Upload */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted flex items-center justify-between">
-                <span>T2 / POST-CHANGE TARGET</span>
-                <span className="text-[10px] text-sat-accent">Later Date</span>
-              </label>
-              <button
-                onClick={() => triggerUpload('t2')}
-                className="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-dashed border-sat-borderLight hover:border-sat-accent rounded text-xs font-mono text-sat-text transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-sat-accent" />
-                <span>{t2Image ? t2Image.split('_').slice(-1)[0] : 'Upload T2 (After)'}</span>
-              </button>
-
-              {/* Sample Selector for T2 */}
-              {samples.length > 0 && (
-                <div className="mt-1">
-                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {samples.map((s) => (
-                      <button
-                        key={s.filename}
-                        onClick={() => onSelectT2Image(s.filename)}
-                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
-                          t2Image === s.filename
-                            ? 'bg-sat-accent/20 border-sat-accent text-sat-accent'
-                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
-                        }`}
-                      >
-                        {s.filename.replace('.png', '').replace('.tif', '')}
-                      </button>
-                    ))}
+                <span className="text-sat-muted">JPG / PNG / TIFF / GeoTIFF</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => triggerUpload('t1')}
+                  className={`flex-1 flex items-center justify-between px-3 py-2 rounded-md border text-xs font-mono transition ${
+                    t1Image
+                      ? 'bg-sat-surface border-sat-accent/40 text-sat-accent font-medium'
+                      : 'bg-sat-surface hover:bg-sat-surfaceHover border-dashed border-sat-borderLight text-sat-muted hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{t1Image ? getDisplayFilename(t1Image) : 'Upload T1 Image'}</span>
                   </div>
+                  {t1Image ? (
+                    <Check className="w-3.5 h-3.5 text-sat-accent flex-shrink-0" />
+                  ) : (
+                    <span className="text-[10px] text-sat-muted font-sans">—</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => onSelectT1Image('Bi_Temporal T1.png')}
+                  title="Load preloaded T1 baseline sample"
+                  className="px-2 py-2 bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight rounded-md text-[10px] font-mono text-sat-muted hover:text-white transition whitespace-nowrap"
+                >
+                  Sample
+                </button>
+              </div>
+            </div>
+
+            {/* T2 Box: Later / Post-Change */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono">
+                <div>
+                  <span className="font-semibold text-sat-text block">T2 — LATER / POST-CHANGE</span>
+                  <span className="text-sat-muted text-[9px]">Later / Post-change image</span>
                 </div>
-              )}
+                <span className="text-sat-muted">JPG / PNG / TIFF / GeoTIFF</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => triggerUpload('t2')}
+                  className={`flex-1 flex items-center justify-between px-3 py-2 rounded-md border text-xs font-mono transition ${
+                    t2Image
+                      ? 'bg-sat-surface border-sat-accent/40 text-sat-accent font-medium'
+                      : 'bg-sat-surface hover:bg-sat-surfaceHover border-dashed border-sat-borderLight text-sat-muted hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{t2Image ? getDisplayFilename(t2Image) : 'Upload T2 Image'}</span>
+                  </div>
+                  {t2Image ? (
+                    <Check className="w-3.5 h-3.5 text-sat-accent flex-shrink-0" />
+                  ) : (
+                    <span className="text-[10px] text-sat-muted font-sans">—</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => onSelectT2Image('Bi_Temporal T2.png')}
+                  title="Load preloaded T2 post-change sample"
+                  className="px-2 py-2 bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight rounded-md text-[10px] font-mono text-sat-muted hover:text-white transition whitespace-nowrap"
+                >
+                  Sample
+                </button>
+              </div>
             </div>
 
-            {/* Quick 1-Click Bi-Temporal Pair loader */}
-            <div className="bg-sat-darker p-2.5 rounded border border-sat-border space-y-1.5">
-              <span className="text-[10px] font-mono text-sat-muted block">PRESET BI-TEMPORAL SCENES:</span>
-              <button
-                onClick={() => {
-                  onSelectT1Image('Bi_Temporal T1.png');
-                  onSelectT2Image('Bi_Temporal T2.png');
-                }}
-                className="w-full text-left text-xs font-mono p-2 rounded bg-sat-surface hover:bg-sat-surface/80 border border-sat-border text-sat-text transition flex items-center justify-between"
-              >
-                <span>Urban Expansion (T1 vs T2)</span>
-                <span className="text-sat-accent text-[10px] font-bold">LOAD PAIR</span>
-              </button>
-            </div>
+            {/* Status indicator when waiting for one of the images */}
+            {(!t1Image || !t2Image) && (t1Image || t2Image) && (
+              <div className="text-[11px] font-mono text-sat-warning/90 bg-sat-warning/10 px-2.5 py-1.5 rounded border border-sat-warning/20">
+                {!t1Image ? 'T1 — | T2 ✓ (Waiting for T1 Earlier image)' : 'T1 ✓ | T2 — (Waiting for T2 Later image)'}
+              </div>
+            )}
 
-            {/* Change Sensitivity Threshold */}
-            <div className="space-y-1 bg-sat-darker p-3 rounded border border-sat-border">
-              <div className="flex justify-between text-xs font-mono">
-                <span className="text-sat-muted">Change Decision Threshold:</span>
-                <span className="text-sat-accent font-bold">{(changeThreshold * 100).toFixed(0)}%</span>
+            {/* Load Pair & Sensitivity Slider */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-2">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    onSelectT1Image('Bi_Temporal T1.png');
+                    onSelectT2Image('Bi_Temporal T2.png');
+                  }}
+                  className="px-2.5 py-1 rounded bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight text-[11px] font-mono text-sat-textSecondary hover:text-white transition"
+                >
+                  Load Pair
+                </button>
+                <div className="flex items-center space-x-1 text-[11px] font-mono">
+                  <span className="text-sat-muted">Threshold:</span>
+                  <span className="text-sat-accent font-bold">{(changeThreshold * 100).toFixed(0)}%</span>
+                </div>
               </div>
               <input
                 type="range"
@@ -529,161 +692,171 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 step="0.05"
                 value={changeThreshold}
                 onChange={(e) => onSetChangeThreshold(parseFloat(e.target.value))}
-                className="w-full accent-sat-accent"
+                className="w-full accent-sat-accent h-1 bg-sat-surface rounded"
               />
             </div>
 
-            {/* Run Button */}
+            {/* Run Bi-Temporal Analysis Button */}
             <button
-              onClick={onRunChange}
+              onClick={handlePrimaryExecute}
               disabled={isProcessing || !t1Image || !t2Image}
-              className={`w-full py-2.5 px-4 rounded font-mono font-bold text-xs flex items-center justify-center space-x-2 transition shadow ${
+              className={`w-full py-2.5 px-4 rounded-full font-sans font-semibold text-xs flex items-center justify-center space-x-2 transition shadow ${
                 isProcessing || !t1Image || !t2Image
-                  ? 'bg-sat-surface text-sat-muted cursor-not-allowed border border-sat-border'
-                  : 'bg-sat-accent hover:bg-sat-accentHover text-sat-darker'
+                  ? 'bg-sat-panel text-sat-muted cursor-not-allowed border border-sat-border'
+                  : 'bg-white hover:bg-slate-200 text-slate-900 active:scale-[0.98]'
               }`}
             >
-              <Play className="w-4 h-4 fill-current" />
-              <span>{isProcessing ? 'RUNNING INFERENCE...' : 'RUN CHANGE DETECTION'}</span>
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-900" />
+              ) : (
+                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+              )}
+              <span>{isProcessing ? 'Detecting Changes...' : 'Run Change Analysis'}</span>
             </button>
           </div>
         )}
 
         {/* =========================================================================
-            4. OPTICAL + SAR FUSION SIDEBAR
+            3. OPTICAL + SAR MODULE CONTROLS (TWO SEPARATE INDEPENDENT UPLOADS)
            ========================================================================= */}
         {currentMode === 'optical_sar' && (
-          <div className="space-y-4">
-            {/* Optical Upload */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted flex items-center justify-between">
-                <span>OPTICAL SATELLITE IMAGE</span>
-                <span className="text-[10px] text-sat-cyan">Visible RGB</span>
-              </label>
-              <button
-                onClick={() => triggerUpload('optical')}
-                className="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-dashed border-sat-borderLight hover:border-sat-cyan rounded text-xs font-mono text-sat-text transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-sat-cyan" />
-                <span>{opticalImage ? opticalImage.split('_').slice(-1)[0] : 'Upload Optical RGB'}</span>
-              </button>
-
-              {/* Sample Selector for Optical */}
-              {samples.length > 0 && (
-                <div className="mt-1">
-                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {samples.map((s) => (
-                      <button
-                        key={s.filename}
-                        onClick={() => onSelectOpticalImage(s.filename)}
-                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
-                          opticalImage === s.filename
-                            ? 'bg-sat-cyan/20 border-sat-cyan text-sat-cyan'
-                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
-                        }`}
-                      >
-                        {s.filename.replace('.png', '').replace('.tif', '')}
-                      </button>
-                    ))}
-                  </div>
+          <div className="space-y-2.5">
+            {/* Optical Box */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono">
+                <div>
+                  <span className="font-semibold text-sat-cyan block">OPTICAL IMAGERY</span>
+                  <span className="text-sat-muted text-[9px]">Earlier/Optical image</span>
                 </div>
-              )}
+                <span className="text-sat-muted">JPG / PNG / TIFF / GeoTIFF</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => triggerUpload('optical')}
+                  className={`flex-1 flex items-center justify-between px-3 py-2 rounded-md border text-xs font-mono transition ${
+                    opticalImage
+                      ? 'bg-sat-surface border-sat-cyan/40 text-sat-cyan font-medium'
+                      : 'bg-sat-surface hover:bg-sat-surfaceHover border-dashed border-sat-borderLight text-sat-muted hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{opticalImage ? getDisplayFilename(opticalImage) : 'Upload Optical Image'}</span>
+                  </div>
+                  {opticalImage ? (
+                    <Check className="w-3.5 h-3.5 text-sat-cyan flex-shrink-0" />
+                  ) : (
+                    <span className="text-[10px] text-sat-muted font-sans">—</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => onSelectOpticalImage('optical.png')}
+                  title="Load preloaded optical sample"
+                  className="px-2 py-2 bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight rounded-md text-[10px] font-mono text-sat-muted hover:text-white transition whitespace-nowrap"
+                >
+                  Sample
+                </button>
+              </div>
             </div>
 
-            {/* SAR Upload */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted flex items-center justify-between">
-                <span>SAR SATELLITE IMAGE</span>
-                <span className="text-[10px] text-sat-warning">Sentinel-1 Radar</span>
-              </label>
-              <button
-                onClick={() => triggerUpload('sar')}
-                className="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-sat-surface hover:bg-sat-surface/80 border border-dashed border-sat-borderLight hover:border-sat-warning rounded text-xs font-mono text-sat-text transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-sat-warning" />
-                <span>{sarImage ? sarImage.split('_').slice(-1)[0] : 'Upload SAR Image'}</span>
-              </button>
-
-              {/* Sample Selector for SAR */}
-              {samples.length > 0 && (
-                <div className="mt-1">
-                  <span className="text-[10px] font-mono text-sat-muted block mb-1">PRELOADED SAMPLES:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {samples.map((s) => (
-                      <button
-                        key={s.filename}
-                        onClick={() => onSelectSarImage(s.filename)}
-                        className={`text-[11px] font-mono px-2 py-1 rounded border transition ${
-                          sarImage === s.filename
-                            ? 'bg-sat-warning/20 border-sat-warning text-sat-warning'
-                            : 'bg-sat-darker border-sat-border text-sat-muted hover:text-sat-text'
-                        }`}
-                      >
-                        {s.filename.replace('.png', '').replace('.tif', '')}
-                      </button>
-                    ))}
-                  </div>
+            {/* SAR Box */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono">
+                <div>
+                  <span className="font-semibold text-sat-warning block">SAR IMAGERY</span>
+                  <span className="text-sat-muted text-[9px]">SAR image</span>
                 </div>
-              )}
+                <span className="text-sat-muted">TIFF / GeoTIFF</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => triggerUpload('sar')}
+                  className={`flex-1 flex items-center justify-between px-3 py-2 rounded-md border text-xs font-mono transition ${
+                    sarImage
+                      ? 'bg-sat-surface border-sat-warning/40 text-sat-warning font-medium'
+                      : 'bg-sat-surface hover:bg-sat-surfaceHover border-dashed border-sat-borderLight text-sat-muted hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{sarImage ? getDisplayFilename(sarImage) : 'Upload SAR Image'}</span>
+                  </div>
+                  {sarImage ? (
+                    <Check className="w-3.5 h-3.5 text-sat-warning flex-shrink-0" />
+                  ) : (
+                    <span className="text-[10px] text-sat-muted font-sans">—</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => onSelectSarImage('sar.png')}
+                  title="Load preloaded SAR sample"
+                  className="px-2 py-2 bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight rounded-md text-[10px] font-mono text-sat-muted hover:text-white transition whitespace-nowrap"
+                >
+                  Sample
+                </button>
+              </div>
             </div>
 
-            {/* Quick 1-Click Optical+SAR Pair loader */}
-            <div className="bg-sat-darker p-2.5 rounded border border-sat-border space-y-1.5">
-              <span className="text-[10px] font-mono text-sat-muted block">PRESET MULTIMODAL PAIR:</span>
+            {/* Status indicator when waiting for one of the images */}
+            {(!opticalImage || !sarImage) && (opticalImage || sarImage) && (
+              <div className="text-[11px] font-mono text-sat-warning/90 bg-sat-warning/10 px-2.5 py-1.5 rounded border border-sat-warning/20">
+                {!opticalImage ? 'Optical — | SAR ✓ (Waiting for Optical image)' : 'Optical ✓ | SAR — (Waiting for SAR image)'}
+              </div>
+            )}
+
+            {/* Load Pair & Despeckle */}
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => {
                   onSelectOpticalImage('optical.png');
                   onSelectSarImage('sar.png');
                 }}
-                className="w-full text-left text-xs font-mono p-2 rounded bg-sat-surface hover:bg-sat-surface/80 border border-sat-border text-sat-text transition flex items-center justify-between"
+                className="flex-1 py-1.5 px-2 bg-sat-panel hover:bg-sat-surface border border-sat-border hover:border-sat-borderLight rounded-md text-[11px] font-mono text-sat-textSecondary hover:text-white transition text-center"
               >
-                <span>Port & Coastal Runway (Opt+SAR)</span>
-                <span className="text-sat-cyan text-[10px] font-bold">LOAD PAIR</span>
+                Load Verified Pair
               </button>
-            </div>
-
-            {/* Despeckle Filter Toggle */}
-            <div className="bg-sat-darker p-3 rounded border border-sat-border space-y-2">
-              <label className="flex items-center space-x-2 text-xs font-mono text-sat-text cursor-pointer">
+              <label className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-sat-panel border border-sat-border rounded-md text-[11px] font-mono text-sat-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={despeckleSar}
                   onChange={(e) => onToggleDespeckle(e.target.checked)}
-                  className="accent-sat-cyan"
+                  className="accent-sat-cyan rounded"
                 />
-                <span>Apply 7x7 Lee Despeckle Filter</span>
+                <span className="text-[10px]">7x7 Lee Filter</span>
               </label>
             </div>
 
-            {/* Optional Cross-modal Question */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-semibold text-sat-muted">CROSS-MODAL QUERY</label>
+            {/* Command / Query Input with Circular Arrow Button */}
+            <div className="relative flex items-center">
               <input
                 type="text"
-                value={opticalSarQuestion}
-                onChange={(e) => onSetOpticalSarQuestion(e.target.value)}
-                placeholder="What differences are visible between optical and SAR?"
-                className="w-full bg-sat-darker border border-sat-border focus:border-sat-cyan rounded p-2 text-xs font-sans text-sat-text focus:outline-none"
+                value={getQueryValue()}
+                onChange={(e) => setQueryValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handlePrimaryExecute();
+                }}
+                placeholder="Compare optical and SAR radar..."
+                className="w-full bg-sat-panel border border-sat-border focus:border-sat-borderLight rounded-full py-2.5 pl-3.5 pr-11 text-xs text-white placeholder-sat-muted focus:outline-none transition shadow-inner font-sans"
               />
-            </div>
 
-            {/* Run Button */}
-            <button
-              onClick={onRunOpticalSar}
-              disabled={isProcessing || !opticalImage || !sarImage}
-              className={`w-full py-2.5 px-4 rounded font-mono font-bold text-xs flex items-center justify-center space-x-2 transition shadow ${
-                isProcessing || !opticalImage || !sarImage
-                  ? 'bg-sat-surface text-sat-muted cursor-not-allowed border border-sat-border'
-                  : 'bg-sat-cyan hover:bg-sat-cyan/80 text-sat-darker font-bold'
-              }`}
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>{isProcessing ? 'FUSING MULTIMODAL DATA...' : 'RUN FUSION ANALYSIS'}</span>
-            </button>
+              <button
+                onClick={handlePrimaryExecute}
+                disabled={isProcessing || !opticalImage || !sarImage}
+                className="absolute right-1.5 w-7 h-7 rounded-full bg-white hover:bg-slate-200 text-slate-900 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed shadow"
+                title="Execute Analysis"
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-900" />
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>
     </aside>
   );
 };
+
+

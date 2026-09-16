@@ -31,20 +31,33 @@ function isHeaderLine(line: string): { isHeader: boolean; heading: string } {
   const trimmed = line.trim();
   if (!trimmed) return { isHeader: false, heading: '' };
 
-  // Strip leading markdown hashes and numbering
-  const cleanLine = trimmed.replace(/^#{1,6}\s*/, '').replace(/^\d+\.\s*/, '').trim();
-  const withoutColon = cleanLine.replace(/:$/, '').trim();
+  // Strip leading markdown hashes, bolding, numbering, and trailing colons
+  let cleanLine = trimmed
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\*\*|\*\*$/g, '')
+    .replace(/^__|_$/g, '')
+    .replace(/^\d+[\.\)]\s*/, '')
+    .replace(/:$/, '')
+    .trim();
+
+  // Second pass in case of nested wrapping like **1. OVERVIEW**
+  cleanLine = cleanLine
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\*\*|\*\*$/g, '')
+    .replace(/^\d+[\.\)]\s*/, '')
+    .replace(/:$/, '')
+    .trim();
 
   // Check against known section headers (case-insensitive)
   for (const h of SECTION_HEADERS) {
-    if (withoutColon.toUpperCase() === h) {
+    if (cleanLine.toUpperCase() === h) {
       return { isHeader: true, heading: h };
     }
   }
 
   // Check if all-caps short heading (e.g. "GEOSPATIAL CONTEXT")
-  if (/^[A-Z][A-Z0-9 /&()_-]{2,30}:?$/.test(cleanLine) && !cleanLine.includes('.')) {
-    return { isHeader: true, heading: withoutColon.toUpperCase() };
+  if (/^[A-Z][A-Z0-9 /&()_-]{2,30}$/.test(cleanLine) && !cleanLine.includes('.')) {
+    return { isHeader: true, heading: cleanLine.toUpperCase() };
   }
 
   return { isHeader: false, heading: '' };

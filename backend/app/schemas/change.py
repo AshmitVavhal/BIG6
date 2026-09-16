@@ -20,6 +20,12 @@ class ChangeDetectionRequest(BaseModel):
     enable_semantic_reasoning: bool = Field(True, description="Enable natural-language semantic reasoning over changed regions")
     semantic_model: Optional[str] = Field("geochat", description="Semantic reasoning model: 'geochat'")
 
+class BiTemporalStructuredAnalysis(BaseModel):
+    overview: str = Field(..., description="Concise natural-language summary of what changed between T1 and T2")
+    visible_features: List[str] = Field(..., description="Point-wise list of visible features comparing T1 and T2")
+    spatial_pattern: str = Field(..., description="Explanation of spatial concentration and organization of changes")
+    interpretation: str = Field(..., description="Concise interpretation of what the observed changes indicate")
+
 class ChangeDetectionResponse(BaseModel):
     task: str = "bi_temporal_change"
     status: str = "success"
@@ -45,8 +51,10 @@ class ChangeDetectionResponse(BaseModel):
     geo_metadata_t1: Optional[GeoMetadata] = None
     geo_metadata_t2: Optional[GeoMetadata] = None
     semantic_analysis: str
+    structured_analysis: Optional[BiTemporalStructuredAnalysis] = None
     execution_trace: List[ExecutionStage] = []
     transparency_warning: Optional[str] = (
         "Change masks and percentages are computed authoritatively by ChangeMamba spatiotemporal state space models. "
         "Semantic interpretation is synthesized by GeoChat + Gemini."
     )
+
