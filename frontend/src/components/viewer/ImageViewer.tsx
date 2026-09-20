@@ -211,14 +211,29 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 {detections.map((det) => {
                   const isSelected = selectedRegion?.id === det.id;
+                  const bx = det.bounding_box;
                   return (
                     <g key={det.id}>
+                      {/* Bounding Box Rectangle */}
+                      {bx && bx.length === 4 && (
+                        <rect
+                          x={bx[0]}
+                          y={bx[1]}
+                          width={Math.max(1, bx[2] - bx[0])}
+                          height={Math.max(1, bx[3] - bx[1])}
+                          fill="none"
+                          stroke={isSelected ? '#38bdf8' : '#ffffff'}
+                          strokeWidth={isSelected ? '2.5' : '1.5'}
+                          strokeDasharray={isSelected ? 'none' : '5 3'}
+                        />
+                      )}
+                      {/* Polygon Segmentation Mask */}
                       {det.mask_polygon && det.mask_polygon.length > 2 && (
                         <polygon
                           points={det.mask_polygon.map((pt) => pt.join(',')).join(' ')}
-                          fill={isSelected ? 'rgba(255, 255, 255, 0.40)' : 'rgba(255, 255, 255, 0.20)'}
-                          stroke={isSelected ? '#ffffff' : '#e2e8f0'}
-                          strokeWidth={isSelected ? '2.5' : '1.5'}
+                          fill={isSelected ? 'rgba(56, 189, 248, 0.40)' : 'rgba(255, 255, 255, 0.25)'}
+                          stroke={isSelected ? '#38bdf8' : '#ffffff'}
+                          strokeWidth={isSelected ? '2' : '1'}
                         />
                       )}
                     </g>

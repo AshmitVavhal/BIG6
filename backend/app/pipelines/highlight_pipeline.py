@@ -193,14 +193,14 @@ class HighlightPipeline:
         t0 = time.time()
         uid = uuid.uuid4().hex[:8]
         
-        # Color overlay (emerald green alpha overlay)
-        annotated_img = image_ops.apply_color_overlay(img_rgb, full_mask, color_rgb=(16, 185, 129), alpha=0.40)
+        # Color overlay (monochrome white alpha overlay)
+        annotated_img = image_ops.apply_color_overlay(img_rgb, full_mask, color_rgb=(255, 255, 255), alpha=0.30)
         
-        # Render bounding boxes and tags
+        # Render bounding boxes and tags in high-contrast white
         boxes = [d.bounding_box for d in refined_detected_regions]
         labels = [d.label for d in refined_detected_regions]
         confs = [d.confidence for d in refined_detected_regions]
-        annotated_img = image_ops.draw_bounding_boxes(annotated_img, boxes, labels, confs, color=(16, 185, 129))
+        annotated_img = image_ops.draw_bounding_boxes(annotated_img, boxes, labels, confs, color=(255, 255, 255))
 
         annotated_filename = f"highlight_annotated_{uid}.png"
         mask_filename = f"highlight_mask_{uid}.png"
