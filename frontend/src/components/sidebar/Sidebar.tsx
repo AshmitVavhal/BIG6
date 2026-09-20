@@ -83,12 +83,16 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   currentMode,
   onSelectMode,
+  vqaImage,
   vqaQuestion,
   onSetVqaQuestion,
+  onSelectVqaImage,
   onRunVQA,
   vqaResult,
+  highlightImage,
   highlightPrompt,
   onSetHighlightPrompt,
+  onSelectHighlightImage,
   highlightThreshold,
   onSetHighlightThreshold,
   onRunHighlight,
@@ -114,7 +118,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRunOpticalSar,
   opticalSarResult,
   onUploadFile,
-  isProcessing
+  isProcessing,
+  semanticModel = 'geochat',
+  onSetSemanticModel
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeUploadSlot = useRef<string>('default');
@@ -201,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         accept=".jpg,.jpeg,.png,.tif,.tiff,.geotiff"
       />
 
-      {/* Top Header: Mission Feed & Item Counter */}
+      {/* Top Header: Mission Feed & Semantic Model Selector */}
       <div className="h-10 px-3.5 border-b border-sat-border flex items-center justify-between bg-sat-bg/80">
         <div className="flex items-center space-x-2">
           <span className="font-semibold text-xs text-white font-sans">Mission Feed</span>
@@ -210,14 +216,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </div>
 
-        <button
-          onClick={handleDownloadDataset}
-          className="flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-mono text-sat-muted hover:text-white hover:bg-sat-panel transition"
-          title="Download verified satellite benchmark dataset"
-        >
-          <Database className="w-3 h-3 text-sat-accent" />
-          <span>Dataset</span>
-        </button>
+        {/* Semantic Model Selector (GeoChat Base vs LoRA) */}
+        {onSetSemanticModel ? (
+          <div className="flex items-center bg-sat-panel border border-sat-border rounded-md p-0.5">
+            <button
+              onClick={() => onSetSemanticModel('geochat')}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                semanticModel === 'geochat'
+                  ? 'bg-white text-slate-900 font-bold shadow-sm'
+                  : 'text-sat-muted hover:text-white'
+              }`}
+              title="GeoChat-7B Base Foundation VLM"
+            >
+              Base
+            </button>
+            <button
+              onClick={() => onSetSemanticModel('geochat_lora')}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                semanticModel === 'geochat_lora'
+                  ? 'bg-white text-slate-900 font-bold shadow-sm'
+                  : 'text-sat-muted hover:text-white'
+              }`}
+              title="GeoChat LoRA (PEFT Fine-Tuned for Remote Sensing)"
+            >
+              LoRA
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleDownloadDataset}
+            className="flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-mono text-sat-muted hover:text-white hover:bg-sat-panel transition"
+            title="Download verified satellite benchmark dataset"
+          >
+            <Database className="w-3 h-3 text-sat-accent" />
+            <span>Dataset</span>
+          </button>
+        )}
       </div>
 
       {/* Middle Scrollable Body: Mission Intelligence Results or Empty State */}
@@ -439,61 +473,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* ==================== BOTTOM CONTROL DOCK ==================== */}
       <div className="p-3 border-t border-sat-border bg-sat-bg space-y-2.5">
-        {/* Module Switcher Pill Bar (Reference Design) */}
-        <div className="flex items-center justify-between bg-sat-panel p-1 rounded-lg border border-sat-border">
-          {/* VQA Tab */}
-          <button
-            onClick={() => onSelectMode('vqa')}
-            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
-              currentMode === 'vqa'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
-                : 'text-sat-muted hover:text-white'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>VQA</span>
-          </button>
-
-          {/* Detect Tab */}
-          <button
-            onClick={() => onSelectMode('highlight')}
-            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
-              currentMode === 'highlight'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
-                : 'text-sat-muted hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Detect</span>
-          </button>
-
-          {/* Change Tab */}
-          <button
-            onClick={() => onSelectMode('bitemporal')}
-            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
-              currentMode === 'bitemporal'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
-                : 'text-sat-muted hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Change</span>
-          </button>
-
-          {/* SAR Tab */}
-          <button
-            onClick={() => onSelectMode('optical_sar')}
-            className={`flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-md text-xs font-sans transition ${
-              currentMode === 'optical_sar'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
-                : 'text-sat-muted hover:text-white'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>SAR</span>
-          </button>
-        </div>
-
         {/* =========================================================================
             1. VQA & DETECT CONTROLS
            ========================================================================= */}
@@ -518,34 +497,90 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
-            {/* Attach Scene & Preset Chips */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => {
-                  if (currentMode === 'vqa') triggerUpload('vqa');
-                  else if (currentMode === 'highlight') triggerUpload('highlight');
-                }}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-sat-panel hover:bg-sat-surface border border-sat-border hover:border-sat-borderLight rounded-full text-xs text-sat-textSecondary hover:text-white transition"
-              >
-                <Paperclip className="w-3.5 h-3.5 text-sat-muted" />
-                <span>Attach Scene</span>
-              </button>
-
-              {/* Quick preset chips */}
-              <div className="flex-1 flex items-center space-x-1 overflow-x-auto no-scrollbar">
-                {currentMode === 'highlight' && (
-                  highlightPresets.slice(0, 3).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => onSetHighlightPrompt(p)}
-                      className="px-2 py-1 rounded-full bg-sat-panel hover:bg-sat-surface border border-sat-border text-[10px] text-sat-muted hover:text-white whitespace-nowrap transition"
-                    >
-                      {p}
-                    </button>
-                  ))
+            {/* Satellite Scene Upload & Sample Selector */}
+            <div className="bg-sat-panel p-2.5 rounded-lg border border-sat-border space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono">
+                <div>
+                  <span className="font-semibold text-sat-text block uppercase">
+                    {currentMode === 'vqa' ? 'VQA Satellite Scene' : 'Detection Target Scene'}
+                  </span>
+                  <span className="text-sat-muted text-[9px]">TIFF / GeoTIFF / PNG / JPG</span>
+                </div>
+                {((currentMode === 'vqa' && vqaImage) || (currentMode === 'highlight' && highlightImage)) && (
+                  <span className="text-[10px] font-mono text-sat-accent flex items-center space-x-1">
+                    <Check className="w-3 h-3" />
+                    <span>Loaded</span>
+                  </span>
                 )}
               </div>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => {
+                    if (currentMode === 'vqa') triggerUpload('vqa');
+                    else if (currentMode === 'highlight') triggerUpload('highlight');
+                  }}
+                  className={`flex-1 flex items-center justify-between px-3 py-2 rounded-md border text-xs font-mono transition ${
+                    (currentMode === 'vqa' ? vqaImage : highlightImage)
+                      ? 'bg-sat-surface border-sat-accent/40 text-sat-accent font-medium'
+                      : 'bg-sat-surface hover:bg-sat-surfaceHover border-dashed border-sat-borderLight text-sat-muted hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">
+                      {currentMode === 'vqa'
+                        ? (vqaImage ? getDisplayFilename(vqaImage) : 'Upload Image')
+                        : (highlightImage ? getDisplayFilename(highlightImage) : 'Upload Image')}
+                    </span>
+                  </div>
+                  {(currentMode === 'vqa' ? vqaImage : highlightImage) ? (
+                    <Check className="w-3.5 h-3.5 text-sat-accent flex-shrink-0" />
+                  ) : (
+                    <span className="text-[10px] text-sat-muted font-sans">—</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    if (currentMode === 'vqa') onSelectVqaImage?.('VQA1.png');
+                    else onSelectHighlightImage?.('VQA1.png');
+                  }}
+                  title="Load Sample 1 (Urban Scene)"
+                  className="px-2 py-2 bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight rounded-md text-[10px] font-mono text-sat-muted hover:text-white transition whitespace-nowrap"
+                >
+                  Sample 1
+                </button>
+                <button
+                  onClick={() => {
+                    if (currentMode === 'vqa') onSelectVqaImage?.('VQA2.png');
+                    else onSelectHighlightImage?.('VQA2.png');
+                  }}
+                  title="Load Sample 2 (Industrial Scene)"
+                  className="px-2 py-2 bg-sat-surface hover:bg-sat-surfaceHover border border-sat-border hover:border-sat-borderLight rounded-md text-[10px] font-mono text-sat-muted hover:text-white transition whitespace-nowrap"
+                >
+                  Sample 2
+                </button>
+              </div>
             </div>
+
+            {/* Quick preset chips for Detect mode */}
+            {currentMode === 'highlight' && (
+              <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <span className="text-[10px] font-mono text-sat-muted flex-shrink-0">Presets:</span>
+                {highlightPresets.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => onSetHighlightPrompt(p)}
+                    className={`px-2 py-0.5 rounded-full border text-[10px] whitespace-nowrap transition ${
+                      highlightPrompt === p
+                        ? 'bg-sat-accent/20 border-sat-accent text-sat-accent font-semibold'
+                        : 'bg-sat-panel hover:bg-sat-surface border-sat-border text-sat-muted hover:text-white'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Command / Query Input with Circular Arrow Button */}
             <div className="relative flex items-center">

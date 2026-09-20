@@ -16,9 +16,9 @@ export default {
           surfaceHover: '#1c202a',
           border: '#1f242e',
           borderLight: '#2b3240',
-          accent: '#10b981', // radar green
-          accentHover: '#059669',
-          accentDim: 'rgba(16, 185, 129, 0.12)',
+          accent: '#ffffff', // monochrome pure white
+          accentHover: '#e2e8f0',
+          accentDim: 'rgba(255, 255, 255, 0.08)',
           warning: '#f59e0b',
           warningDim: 'rgba(245, 158, 11, 0.12)',
           cyan: '#06b6d4',

@@ -138,14 +138,12 @@ export const App: React.FC = () => {
   const handleSelectScenario = (scenario: 'flood' | 'urban' | 'sar' | 'change') => {
     if (scenario === 'flood') {
       setCurrentMode('vqa');
-      const sample = samples.find((s) => s.filename.toLowerCase().includes('flood')) || samples[0];
-      if (sample) setVqaImage(sample.filename);
-      setVqaQuestion('Describe the extent of flood inundation and major land-cover changes.');
+      setVqaImage('VQA1.png');
+      setVqaQuestion('Describe visible geographical features and water bodies in this scene.');
     } else if (scenario === 'urban') {
       setCurrentMode('highlight');
       setHighlightPrompt('building');
-      const sample = samples.find((s) => s.filename.toLowerCase().includes('urban') || s.filename.toLowerCase().includes('cartosat')) || samples[0];
-      if (sample) setHighlightImage(sample.filename);
+      setHighlightImage('VQA2.png');
     } else if (scenario === 'sar') {
       setCurrentMode('optical_sar');
       setOpticalImage('optical.png');
@@ -263,6 +261,8 @@ export const App: React.FC = () => {
       {/* Top Navbar */}
       <TopNavbar
         systemStatus={systemStatus}
+        currentMode={currentMode}
+        onSelectMode={setCurrentMode}
         onReset={handleReset}
         onOpenBenchmarks={() => setShowBenchmarks(true)}
         onOpenExport={() => setShowExport(true)}

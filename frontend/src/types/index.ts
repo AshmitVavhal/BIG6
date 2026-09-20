@@ -2,7 +2,7 @@ export type WorkspaceMode = 'vqa' | 'highlight' | 'bitemporal' | 'optical_sar';
 
 export type ComparisonMode = 'split' | 'dual' | 'blink' | 'blend';
 
-export type SemanticModelChoice = 'geochat';
+export type SemanticModelChoice = 'geochat' | 'geochat_lora';
 
 export interface SystemStatus {
   online: boolean;

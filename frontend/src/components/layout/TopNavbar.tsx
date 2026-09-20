@@ -1,9 +1,11 @@
 import React from 'react';
-import { RotateCcw, FileText, BarChart2, Satellite, Radio } from 'lucide-react';
-import type { SystemStatus } from '../../types';
+import { RotateCcw, FileText, BarChart2, Satellite, MessageSquare, Sparkles, Layers, Radio } from 'lucide-react';
+import type { SystemStatus, WorkspaceMode } from '../../types';
 
 interface TopNavbarProps {
   systemStatus: SystemStatus | null;
+  currentMode: WorkspaceMode;
+  onSelectMode: (mode: WorkspaceMode) => void;
   onReset: () => void;
   onOpenBenchmarks: () => void;
   onOpenExport: () => void;
@@ -12,6 +14,8 @@ interface TopNavbarProps {
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
   systemStatus,
+  currentMode,
+  onSelectMode,
   onReset,
   onOpenBenchmarks,
   onOpenExport,
@@ -56,6 +60,61 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Center Section: Primary Operational Mode Switcher */}
+      <nav className="flex items-center bg-sat-panel p-1 rounded-lg border border-sat-border space-x-1 shadow-sm">
+        <button
+          onClick={() => onSelectMode('vqa')}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-sans transition ${
+            currentMode === 'vqa'
+              ? 'bg-white text-slate-900 font-semibold shadow-sm'
+              : 'text-sat-muted hover:text-white hover:bg-sat-surface'
+          }`}
+          title="Visual Question Answering & Scene Analysis"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>VQA</span>
+        </button>
+
+        <button
+          onClick={() => onSelectMode('highlight')}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-sans transition ${
+            currentMode === 'highlight'
+              ? 'bg-white text-slate-900 font-semibold shadow-sm'
+              : 'text-sat-muted hover:text-white hover:bg-sat-surface'
+          }`}
+          title="Open-Vocabulary Object Detection & Segmentation"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Detect</span>
+        </button>
+
+        <button
+          onClick={() => onSelectMode('bitemporal')}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-sans transition ${
+            currentMode === 'bitemporal'
+              ? 'bg-white text-slate-900 font-semibold shadow-sm'
+              : 'text-sat-muted hover:text-white hover:bg-sat-surface'
+          }`}
+          title="Bi-Temporal Change Detection (T1 vs T2)"
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>Change</span>
+        </button>
+
+        <button
+          onClick={() => onSelectMode('optical_sar')}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-sans transition ${
+            currentMode === 'optical_sar'
+              ? 'bg-white text-slate-900 font-semibold shadow-sm'
+              : 'text-sat-muted hover:text-white hover:bg-sat-surface'
+          }`}
+          title="Optical + Synthetic Aperture Radar Fusion"
+        >
+          <Radio className="w-3.5 h-3.5" />
+          <span>Optical + SAR</span>
+        </button>
+      </nav>
 
       {/* Right Section: Actions & Telemetry */}
       <div className="flex items-center space-x-2">

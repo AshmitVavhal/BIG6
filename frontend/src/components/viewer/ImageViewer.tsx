@@ -216,8 +216,8 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                       {det.mask_polygon && det.mask_polygon.length > 2 && (
                         <polygon
                           points={det.mask_polygon.map((pt) => pt.join(',')).join(' ')}
-                          fill={isSelected ? 'rgba(6, 182, 212, 0.4)' : 'rgba(16, 185, 129, 0.25)'}
-                          stroke={isSelected ? '#06b6d4' : '#10b981'}
+                          fill={isSelected ? 'rgba(255, 255, 255, 0.40)' : 'rgba(255, 255, 255, 0.20)'}
+                          stroke={isSelected ? '#ffffff' : '#e2e8f0'}
                           strokeWidth={isSelected ? '2.5' : '1.5'}
                         />
                       )}
