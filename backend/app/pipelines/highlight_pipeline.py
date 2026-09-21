@@ -73,6 +73,10 @@ class HighlightPipeline:
             duration_ms=round(lae_ms, 1)
         ))
 
+        # Explicit garbage collection to prevent memory spikes on CPU
+        import gc
+        gc.collect()
+
         # 4. Mask2Former Universal Segmentation Refinement (Authoritative Model)
         t0 = time.time()
         mask2former = self.model_manager.get_mask2former()
